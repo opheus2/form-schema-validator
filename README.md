@@ -5,10 +5,22 @@ Small, framework-agnostic validator for the form schema used by the builder.
 ### Install
 
 ```bash
-composer require form-builder/form-schema
+composer require form-builder/form-schema-validator
 ```
 
-### Usage
+### API
+
+- `FormSchema\SchemaValidator`
+  - `validate(array $schema): ValidationResult`
+  - `assertValid(array $schema): void`
+- `FormSchema\SubmissionValidator`
+  - `validate(array $schema, array $payload, array $replacements = []): ValidationResult`
+  - `assertValid(array $schema, array $payload, array $replacements = []): void`
+- `FormSchema\ValidationResult`
+  - `isValid(): bool`
+  - `errors(): array<string, string>`
+
+### Schema validation
 
 ```php
 use FormSchema\SchemaValidator;
@@ -38,7 +50,7 @@ $validator = new SubmissionValidator();
 
 $schema = [/* form schema with pages/sections/fields */];
 $payload = request()->all();
-$context = ['external_token' => 'abc123']; // optional replacements merged before validation
+$context = ['external_token' => 'abc123']; // optional replacements merged (and overriding) before validation
 
 $result = $validator->validate($schema, $payload, $context);
 
@@ -47,4 +59,45 @@ if (! $result->isValid()) {
 }
 ```
 
-Supported field validations include: required (and required_if / required_unless / required_if_accepted / required_if_declined / required_with / required_with_all / required_without / required_without_all), email, phone, boolean, string, numeric, min, max, between, not_between, in, not_in, before, after, regex, starts_with, ends_with. Option fields must provide `option_properties.data`.
+Each field may define `validations` as an array of rules:
+
+```php
+'validations' => [
+    ['rule' => 'min', 'params' => [3], 'message' => 'Must be at least 3.'],
+    ['rule' => 'required_if', 'params' => ['other_field', true], 'message' => 'Required when other_field is true.'],
+],
+```
+
+All rules (except `required` and the `required_*` variants) treat empty values as "pass" (i.e. optional fields only validate when present).
+
+#### Supported field validations
+
+| Rule | Params | Notes |
+| --- | --- | --- |
+| `required` | — | Value must be non-empty (`null`, `''`, `[]` are empty). |
+| `required_if` | `[otherKey, otherValue]` | Required when `context[otherKey] == otherValue`. |
+| `required_unless` | `[otherKey, otherValue]` | Required when `context[otherKey] != otherValue`. |
+| `required_if_accepted` | `[otherKey]` | Required when `context[otherKey]` is accepted (`true`, `1`, `'1'`, `'true'`, `'on'`, `'yes'`). |
+| `required_if_declined` | `[otherKey]` | Required when `context[otherKey]` is declined (`false`, `0`, `'0'`, `'false'`, `'off'`, `'no'`). |
+| `required_with` | `[otherKey, ...]` | Required when any referenced context key is non-empty. |
+| `required_with_all` | `[otherKey, ...]` | Required when all referenced context keys are non-empty. |
+| `required_without` | `[otherKey, ...]` | Required when any referenced context key is empty. |
+| `required_without_all` | `[otherKey, ...]` | Required when all referenced context keys are empty. |
+| `email` | — | Valid email (`FILTER_VALIDATE_EMAIL`). |
+| `phone` | — | Matches `/^[0-9 +().-]{6,}$/`. |
+| `boolean` | — | Accepts `true/false`, `0/1`, `'0'/'1'`, `'true'/'false'`. |
+| `string` | — | Must be a string. |
+| `numeric` | — | Must be numeric (`is_numeric`). |
+| `min` | `[min]` | Numbers: `>= min`. Strings: `length >= min`. |
+| `max` | `[max]` | Numbers: `<= max`. Strings: `length <= max`. |
+| `between` | `[min, max]` | Inclusive range for numbers or string length. |
+| `not_between` | `[min, max]` | Outside inclusive range for numbers or string length. |
+| `in` | `[value, ...]` | Strict match (`in_array(..., true)`). |
+| `not_in` | `[value, ...]` | Strict non-match. |
+| `before` | `[date]` | `strtotime` comparison vs target date. |
+| `after` | `[date]` | `strtotime` comparison vs target date. |
+| `regex` | `[pattern]` | `preg_match(pattern, value) === 1` (pattern includes delimiters). |
+| `starts_with` | `[prefix]` | String must start with prefix. |
+| `ends_with` | `[suffix]` | String must end with suffix. |
+
+Option fields must provide `option_properties.data`.
