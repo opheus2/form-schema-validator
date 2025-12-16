@@ -1,5 +1,5 @@
 {
-    "name": "form-builder/form-schema",
+    "name": "form-builder/form-schema-validator",
     "description": "Lightweight PHP utilities for validating form schemas.",
     "type": "library",
     "license": "MIT",
