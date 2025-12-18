@@ -75,8 +75,8 @@ All rules (except `required` and the `required_*` variants) treat empty values a
 | Rule | Params | Notes |
 | --- | --- | --- |
 | `required` | — | Value must be non-empty (`null`, `''`, `[]` are empty). |
-| `required_if` | `[otherKey, otherValue]` | Required when `context[otherKey] == otherValue`. |
-| `required_unless` | `[otherKey, otherValue]` | Required when `context[otherKey] != otherValue`. |
+| `required_if` | `[otherKey, otherValue, ...]` | Required when `context[otherKey] ==` any provided value. |
+| `required_unless` | `[otherKey, otherValue, ...]` | Required unless `context[otherKey] ==` any provided value. |
 | `required_if_accepted` | `[otherKey]` | Required when `context[otherKey]` is accepted (`true`, `1`, `'1'`, `'true'`, `'on'`, `'yes'`). |
 | `required_if_declined` | `[otherKey]` | Required when `context[otherKey]` is declined (`false`, `0`, `'0'`, `'false'`, `'off'`, `'no'`). |
 | `required_with` | `[otherKey, ...]` | Required when any referenced context key is non-empty. |
@@ -94,10 +94,10 @@ All rules (except `required` and the `required_*` variants) treat empty values a
 | `not_between` | `[min, max]` | Outside inclusive range for numbers or string length. |
 | `in` | `[value, ...]` | Strict match (`in_array(..., true)`). |
 | `not_in` | `[value, ...]` | Strict non-match. |
-| `before` | `[date]` | `strtotime` comparison vs target date. |
-| `after` | `[date]` | `strtotime` comparison vs target date. |
+| `before` | `[date]` | `strtotime` comparison vs target date (supports `{field:otherKey}` as the date source). |
+| `after` | `[date]` | `strtotime` comparison vs target date (supports `{field:otherKey}` as the date source). |
 | `regex` | `[pattern]` | `preg_match(pattern, value) === 1` (pattern includes delimiters). |
-| `starts_with` | `[prefix]` | String must start with prefix. |
-| `ends_with` | `[suffix]` | String must end with suffix. |
+| `starts_with` | `[prefix, ...]` | String must start with any provided prefix. |
+| `ends_with` | `[suffix, ...]` | String must end with any provided suffix. |
 
 Option fields must provide `option_properties.data`.

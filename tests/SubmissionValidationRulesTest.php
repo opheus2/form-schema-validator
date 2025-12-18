@@ -164,6 +164,103 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($failed->isValid());
     }
 
+    public function testRequiredVariantsSupportMultipleParamsAndFieldRefs(): void
+    {
+        $field = [
+            'key' => 'comment',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'required_if', 'params' => ['{field:flag}', 'yes', 'y']],
+            ],
+        ];
+
+        $schema = $this->schemaForField($field);
+
+        $notRequired = $this->validator()->validate($schema, ['flag' => 'no']);
+        $this->assertTrue($notRequired->isValid());
+
+        $required = $this->validator()->validate($schema, ['flag' => 'yes']);
+        $this->assertFalse($required->isValid());
+        $this->assertArrayHasKey('comment', $required->errors());
+    }
+
+    public function testRequiredWithAndWithoutSupportMultipleFieldsAndFieldRefs(): void
+    {
+        // required_with: required when any present
+        $schemaRequiredWith = $this->schemaForField([
+            'key' => 'note',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'required_with', 'params' => ['{field:a}', '{field:b}']],
+            ],
+        ]);
+        $this->assertTrue($this->validator()->validate($schemaRequiredWith, [])->isValid());
+        $this->assertFalse($this->validator()->validate($schemaRequiredWith, ['a' => 1])->isValid());
+        $this->assertTrue($this->validator()->validate($schemaRequiredWith, ['a' => 1, 'note' => 'x'])->isValid());
+
+        // required_with_all: required only when all present
+        $schemaRequiredWithAll = $this->schemaForField([
+            'key' => 'note',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'required_with_all', 'params' => ['{field:a}', '{field:b}']],
+            ],
+        ]);
+        $this->assertTrue($this->validator()->validate($schemaRequiredWithAll, ['a' => 1])->isValid());
+        $this->assertFalse($this->validator()->validate($schemaRequiredWithAll, ['a' => 1, 'b' => 2])->isValid());
+
+        // required_without: required when any missing
+        $schemaRequiredWithout = $this->schemaForField([
+            'key' => 'note',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'required_without', 'params' => ['{field:a}', '{field:b}']],
+            ],
+        ]);
+        $this->assertFalse($this->validator()->validate($schemaRequiredWithout, ['a' => 1])->isValid()); // b missing -> required
+        $this->assertTrue($this->validator()->validate($schemaRequiredWithout, ['a' => 1, 'b' => 2])->isValid());
+
+        // required_without_all: required when all missing
+        $schemaRequiredWithoutAll = $this->schemaForField([
+            'key' => 'note',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'required_without_all', 'params' => ['{field:a}', '{field:b}']],
+            ],
+        ]);
+        $this->assertFalse($this->validator()->validate($schemaRequiredWithoutAll, [])->isValid());
+        $this->assertTrue($this->validator()->validate($schemaRequiredWithoutAll, ['a' => 1])->isValid());
+    }
+
+    public function testStartsWithAndEndsWithSupportMultipleValues(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'phrase',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'starts_with', 'params' => ['he', 'yo']],
+                ['rule' => 'ends_with', 'params' => ['lo', 'ld']],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['phrase' => 'hello'])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['phrase' => 'nope'])->isValid());
+    }
+
+    public function testBeforeAndAfterSupportFieldRefs(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'end',
+            'type' => 'date',
+            'validations' => [
+                ['rule' => 'after', 'params' => ['{field:start}']],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['start' => '2024-01-01', 'end' => '2024-01-02'])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['start' => '2024-01-02', 'end' => '2024-01-01'])->isValid());
+    }
+
     public function testEndsWithFailsWhenInvalid(): void
     {
         $field = [

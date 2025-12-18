@@ -102,6 +102,8 @@ class SubmissionValidator
      */
     private function passes(string $rule, array $params, mixed $value, array $context): bool
     {
+        $params = $this->normalizeParams($params);
+
         switch ($rule) {
             case 'required':
                 return ! $this->isEmpty($value);
@@ -160,6 +162,10 @@ class SubmissionValidator
             case 'before':
             case 'after':
                 $target = $params[0] ?? null;
+                $targetRef = $this->fieldRefKey($target);
+                if (null !== $targetRef) {
+                    $target = $context[$targetRef] ?? null;
+                }
                 $tsValue = $this->toTimestamp($value);
                 $tsTarget = $this->toTimestamp($target);
                 if (null === $tsValue || null === $tsTarget) {
@@ -176,12 +182,48 @@ class SubmissionValidator
                 return $this->isEmpty($value) || preg_match($pattern, (string) $value) === 1;
 
             case 'starts_with':
-                $prefix = (string) ($params[0] ?? '');
-                return $this->isEmpty($value) || str_starts_with((string) $value, $prefix);
+                if ($this->isEmpty($value)) {
+                    return true;
+                }
+
+                $prefixes = array_values(array_filter(
+                    array_map(static fn (mixed $p): string => (string) $p, $params),
+                    static fn (string $p): bool => '' !== $p
+                ));
+
+                if ([] === $prefixes) {
+                    return true;
+                }
+
+                foreach ($prefixes as $prefix) {
+                    if (str_starts_with((string) $value, $prefix)) {
+                        return true;
+                    }
+                }
+
+                return false;
 
             case 'ends_with':
-                $suffix = (string) ($params[0] ?? '');
-                return $this->isEmpty($value) || str_ends_with((string) $value, $suffix);
+                if ($this->isEmpty($value)) {
+                    return true;
+                }
+
+                $suffixes = array_values(array_filter(
+                    array_map(static fn (mixed $p): string => (string) $p, $params),
+                    static fn (string $p): bool => '' !== $p
+                ));
+
+                if ([] === $suffixes) {
+                    return true;
+                }
+
+                foreach ($suffixes as $suffix) {
+                    if (str_ends_with((string) $value, $suffix)) {
+                        return true;
+                    }
+                }
+
+                return false;
         }
 
         // Unknown rule: consider it passed to avoid false negatives.
@@ -194,43 +236,195 @@ class SubmissionValidator
      */
     private function passesRequiredVariants(string $rule, array $params, mixed $value, array $context): bool
     {
-        $contextValue = fn (mixed $key): mixed => $context[$key] ?? null;
+        if ( ! $this->isEmpty($value)) {
+            return true;
+        }
+
+        $contextValue = fn (string $key): mixed => $context[$key] ?? null;
 
         return match ($rule) {
-            'required_if' => $this->isEmpty($value)
-                ? ! ($contextValue($params[0] ?? null) == ($params[1] ?? null))
-                : true,
+            'required_if' => (function () use ($params, $contextValue): bool {
+                $otherKey = $this->normalizeFieldKey($params[0] ?? null);
+                $targets = array_slice($params, 1);
 
-            'required_unless' => $this->isEmpty($value)
-                ? ($contextValue($params[0] ?? null) == ($params[1] ?? null))
-                : true,
+                if (null === $otherKey || [] === $targets) {
+                    return true;
+                }
 
-            'required_if_accepted' => $this->isEmpty($value)
-                ? ! $this->isAccepted($contextValue($params[0] ?? null))
-                : true,
+                $actual = $contextValue($otherKey);
+                foreach ($targets as $target) {
+                    if ($actual == $target) {
+                        return false;
+                    }
+                }
 
-            'required_if_declined' => $this->isEmpty($value)
-                ? ! $this->isDeclined($contextValue($params[0] ?? null))
-                : true,
+                return true;
+            })(),
 
-            'required_with' => $this->isEmpty($value)
-                ? empty(array_filter((array) ($params[0] ?? []), fn ($k) => ! $this->isEmpty($contextValue($k)))) // if any present, fail
-                : true,
+            'required_unless' => (function () use ($params, $contextValue): bool {
+                $otherKey = $this->normalizeFieldKey($params[0] ?? null);
+                $targets = array_slice($params, 1);
 
-            'required_with_all' => $this->isEmpty($value)
-                ? count(array_filter((array) ($params[0] ?? []), fn ($k) => ! $this->isEmpty($contextValue($k)))) !== count((array) ($params[0] ?? []))
-                : true,
+                if (null === $otherKey || [] === $targets) {
+                    return true;
+                }
 
-            'required_without' => $this->isEmpty($value)
-                ? ! empty(array_filter((array) ($params[0] ?? []), fn ($k) => $this->isEmpty($contextValue($k))))
-                : true,
+                $actual = $contextValue($otherKey);
+                foreach ($targets as $target) {
+                    if ($actual == $target) {
+                        return true;
+                    }
+                }
 
-            'required_without_all' => $this->isEmpty($value)
-                ? count(array_filter((array) ($params[0] ?? []), fn ($k) => ! $this->isEmpty($contextValue($k)))) > 0
-                : true,
+                return false;
+            })(),
+
+            'required_if_accepted' => (function () use ($params, $contextValue): bool {
+                $otherKey = $this->normalizeFieldKey($params[0] ?? null);
+                if (null === $otherKey) {
+                    return true;
+                }
+
+                return ! $this->isAccepted($contextValue($otherKey));
+            })(),
+
+            'required_if_declined' => (function () use ($params, $contextValue): bool {
+                $otherKey = $this->normalizeFieldKey($params[0] ?? null);
+                if (null === $otherKey) {
+                    return true;
+                }
+
+                return ! $this->isDeclined($contextValue($otherKey));
+            })(),
+
+            'required_with' => (function () use ($params, $contextValue): bool {
+                $keys = $this->normalizeFieldKeys($params);
+                if ([] === $keys) {
+                    return true;
+                }
+
+                foreach ($keys as $key) {
+                    if ( ! $this->isEmpty($contextValue($key))) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })(),
+
+            'required_with_all' => (function () use ($params, $contextValue): bool {
+                $keys = $this->normalizeFieldKeys($params);
+                if ([] === $keys) {
+                    return true;
+                }
+
+                foreach ($keys as $key) {
+                    if ($this->isEmpty($contextValue($key))) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })(),
+
+            'required_without' => (function () use ($params, $contextValue): bool {
+                $keys = $this->normalizeFieldKeys($params);
+                if ([] === $keys) {
+                    return true;
+                }
+
+                foreach ($keys as $key) {
+                    if ($this->isEmpty($contextValue($key))) {
+                        return false;
+                    }
+                }
+
+                return true;
+            })(),
+
+            'required_without_all' => (function () use ($params, $contextValue): bool {
+                $keys = $this->normalizeFieldKeys($params);
+                if ([] === $keys) {
+                    return true;
+                }
+
+                foreach ($keys as $key) {
+                    if ( ! $this->isEmpty($contextValue($key))) {
+                        return true;
+                    }
+                }
+
+                return false;
+            })(),
 
             default => true,
         };
+    }
+
+    /**
+     * @param array<int|string, mixed> $params
+     *
+     * @return array<int, mixed>
+     */
+    private function normalizeParams(array $params): array
+    {
+        $params = array_values($params);
+
+        if (count($params) === 1 && is_array($params[0])) {
+            $params = array_values($params[0]);
+        }
+
+        return $params;
+    }
+
+    private function fieldRefKey(mixed $param): ?string
+    {
+        if ( ! is_string($param)) {
+            return null;
+        }
+
+        if ( ! str_starts_with($param, '{field:') || ! str_ends_with($param, '}')) {
+            return null;
+        }
+
+        $key = substr($param, 7, -1);
+
+        return '' === $key ? null : $key;
+    }
+
+    private function normalizeFieldKey(mixed $param): ?string
+    {
+        if ( ! is_string($param)) {
+            return null;
+        }
+
+        $refKey = $this->fieldRefKey($param);
+        if (null !== $refKey) {
+            return $refKey;
+        }
+
+        return '' === $param ? null : $param;
+    }
+
+    /**
+     * @param array<int, mixed> $params
+     *
+     * @return array<int, string>
+     */
+    private function normalizeFieldKeys(array $params): array
+    {
+        $keys = [];
+
+        foreach ($params as $param) {
+            $key = $this->normalizeFieldKey($param);
+            if (null === $key) {
+                continue;
+            }
+
+            $keys[] = $key;
+        }
+
+        return array_values(array_unique($keys));
     }
 
     private function isEmpty(mixed $value): bool
