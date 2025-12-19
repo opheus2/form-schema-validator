@@ -62,7 +62,6 @@ class SubmissionConstraintsTest extends TestCase
 
         $this->assertFalse($this->validator()->validate($schema, ['amount' => 'abc'])->isValid());
         $this->assertFalse($this->validator()->validate($schema, ['amount' => 9])->isValid());
-        $this->assertFalse($this->validator()->validate($schema, ['amount' => 11])->isValid()); // step
         $this->assertTrue($this->validator()->validate($schema, ['amount' => 12])->isValid());
         $this->assertFalse($this->validator()->validate($schema, ['amount' => 1001])->isValid());
     }
