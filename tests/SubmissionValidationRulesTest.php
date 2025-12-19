@@ -70,6 +70,60 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
+    public function testNumericGreaterAndLessThanRules(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'age',
+            'type' => 'number',
+            'required' => true,
+            'validations' => [
+                ['rule' => 'numeric'],
+                ['rule' => 'gt', 'params' => [18]],
+                ['rule' => 'lt', 'params' => [30]],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['age' => 19])->isValid());
+        $this->assertTrue($this->validator()->validate($schema, ['age' => 29])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['age' => 18])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['age' => 30])->isValid());
+    }
+
+    public function testNumericGreaterOrEqualAndLessOrEqualRules(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'age',
+            'type' => 'number',
+            'required' => true,
+            'validations' => [
+                ['rule' => 'numeric'],
+                ['rule' => 'gte', 'params' => [18]],
+                ['rule' => 'lte', 'params' => [30]],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['age' => 18])->isValid());
+        $this->assertTrue($this->validator()->validate($schema, ['age' => 30])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['age' => 17])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['age' => 31])->isValid());
+    }
+
+    public function testNumericComparisonRulesSupportFieldRefs(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'b',
+            'type' => 'number',
+            'required' => true,
+            'validations' => [
+                ['rule' => 'numeric'],
+                ['rule' => 'gt', 'params' => ['{field:a}']],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['a' => 5, 'b' => 6])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['a' => 5, 'b' => 5])->isValid());
+    }
+
     public function testBooleanRule(): void
     {
         $field = [

@@ -9,6 +9,7 @@ use FormSchema\Validation\Rules\AfterRule;
 use FormSchema\Validation\Rules\BeforeRule;
 use FormSchema\Validation\Rules\EndsWithRule;
 use FormSchema\Validation\Rules\NotBetweenRule;
+use FormSchema\Validation\Rules\NumericComparisonRule;
 use FormSchema\Validation\Rules\PhoneRule;
 use FormSchema\Validation\Rules\RegexRule;
 use FormSchema\Validation\Rules\RequiredIfAcceptedRule;
@@ -153,6 +154,10 @@ class SubmissionValidator
         $validator->addValidator('ends_with', new EndsWithRule());
         $validator->addValidator('required_if_accepted', new RequiredIfAcceptedRule());
         $validator->addValidator('required_if_declined', new RequiredIfDeclinedRule());
+        $validator->addValidator('gt', new NumericComparisonRule('>', 'The :attribute must be greater than :target.'));
+        $validator->addValidator('gte', new NumericComparisonRule('>=', 'The :attribute must be greater than or equal to :target.'));
+        $validator->addValidator('lt', new NumericComparisonRule('<', 'The :attribute must be less than :target.'));
+        $validator->addValidator('lte', new NumericComparisonRule('<=', 'The :attribute must be less than or equal to :target.'));
 
         return $validator;
     }
@@ -209,6 +214,10 @@ class SubmissionValidator
 
             case 'min':
             case 'max':
+            case 'gt':
+            case 'gte':
+            case 'lt':
+            case 'lte':
             case 'before':
             case 'after':
             case 'regex':
