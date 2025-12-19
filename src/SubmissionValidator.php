@@ -22,7 +22,6 @@ use FormSchema\Validation\Rules\RequiredWithAllNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithoutAllNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithoutNonEmptyRule;
-use FormSchema\Validation\Rules\StepRule;
 use FormSchema\Validation\Rules\StartsWithRule;
 use FormSchema\Validation\Rules\StringRule;
 use FormSchema\Validation\Rules\TimeRule;
@@ -186,7 +185,6 @@ class SubmissionValidator
         $validator->addValidator('time', new TimeRule());
         $validator->addValidator('datetime', new DateTimeRule());
         $validator->addValidator('email_domains', new EmailDomainsRule());
-        $validator->addValidator('step', new StepRule());
 
         return $validator;
     }
@@ -450,15 +448,6 @@ class SubmissionValidator
             if (in_array($type, ['number', 'rating', 'tag', 'options'], true)) {
                 $fieldRules[] = $validator('max', $constraints['max']);
             }
-        }
-
-        // Step constraint (numbers only)
-        if ('number' === $type && array_key_exists('step', $constraints) && is_numeric($constraints['step'])) {
-            $base = (array_key_exists('min', $constraints) && is_numeric($constraints['min']))
-                ? $constraints['min']
-                : 0;
-
-            $fieldRules[] = $validator('step', $constraints['step'], $base);
         }
 
         // Email domain constraints
