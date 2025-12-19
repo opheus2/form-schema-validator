@@ -41,7 +41,7 @@ The validator checks that pages, sections, and fields exist with supported field
 
 ### Submission validation
 
-Validate a user-submitted payload against a schema (field validations + required flags):
+Validate a user-submitted payload against a schema (field validations + required flags + field constraints):
 
 ```php
 use FormSchema\SubmissionValidator;
@@ -70,6 +70,17 @@ Each field may define `validations` as an array of rules:
 
 All rules (except `required` and the `required_*` variants) treat empty values as "pass" (i.e. optional fields only validate when present).
 
+#### Field constraints
+
+In addition to `validations`, the validator will also enforce `constraints` by field type, for example:
+
+- Text-like fields (`short-text`, `text`, `medium-text`, `long-text`, `address`) validate `constraints.min_length` / `constraints.max_length`
+- `number` validates `constraints.min` / `constraints.max` / `constraints.step`
+- `tag` validates `constraints.min` / `constraints.max` as tag count
+- `email` validates domain allow/deny lists via `constraints.allowed_domains` / `constraints.disallowed_domains` (and `constraints.max_length`)
+- `country` validates `constraints.allow_countries` / `constraints.exclude_countries`
+- File inputs (`file`, `image`, `video`, `document`) validate `constraints.accept`, `allow_multiple`, `min`, `max`, `max_file_size`, `max_total_size`
+
 #### Supported field validations
 
 | Rule | Params | Notes |
@@ -85,15 +96,22 @@ All rules (except `required` and the `required_*` variants) treat empty values a
 | `required_without_all` | `[otherKey, ...]` | Required when all referenced context keys are empty. |
 | `email` | — | Valid email (`FILTER_VALIDATE_EMAIL`). |
 | `phone` | — | Matches `/^[0-9 +().-]{6,}$/`. |
-| `boolean` | — | Accepts `true/false`, `0/1`, `'0'/'1'`, `'true'/'false'`. |
+| `boolean` | — | Accepts `true/false`, `0/1`, `'0'/'1'`, `'true'/'false'`, `'yes'/'no'`, `'on'/'off'`, `'y'/'n'`. |
 | `string` | — | Must be a string. |
 | `numeric` | — | Must be numeric (`is_numeric`). |
+| `gt` | `[target]` | Number must be `> target` (supports `{field:otherKey}`). |
+| `gte` | `[target]` | Number must be `>= target` (supports `{field:otherKey}`). |
+| `lt` | `[target]` | Number must be `< target` (supports `{field:otherKey}`). |
+| `lte` | `[target]` | Number must be `<= target` (supports `{field:otherKey}`). |
 | `min` | `[min]` | Numbers: `>= min`. Strings: `length >= min`. |
 | `max` | `[max]` | Numbers: `<= max`. Strings: `length <= max`. |
 | `between` | `[min, max]` | Inclusive range for numbers or string length. |
 | `not_between` | `[min, max]` | Outside inclusive range for numbers or string length. |
 | `in` | `[value, ...]` | Strict match (`in_array(..., true)`). |
 | `not_in` | `[value, ...]` | Strict non-match. |
+| `date` | — | Validates `Y-m-d` by default. |
+| `time` | — | Validates `HH:mm` or `HH:mm:ss`. |
+| `datetime` | — | Validates `YYYY-MM-DDTHH:mm` (or seconds) and `YYYY-MM-DD HH:mm` variants. |
 | `before` | `[date]` | `strtotime` comparison vs target date (supports `{field:otherKey}` as the date source). |
 | `after` | `[date]` | `strtotime` comparison vs target date (supports `{field:otherKey}` as the date source). |
 | `regex` | `[pattern]` | `preg_match(pattern, value) === 1` (pattern includes delimiters). |

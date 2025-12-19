@@ -7,7 +7,11 @@ namespace FormSchema;
 use InvalidArgumentException;
 use FormSchema\Validation\Rules\AfterRule;
 use FormSchema\Validation\Rules\BeforeRule;
+use FormSchema\Validation\Rules\BooleanRule;
+use FormSchema\Validation\Rules\DateTimeRule;
+use FormSchema\Validation\Rules\EmailDomainsRule;
 use FormSchema\Validation\Rules\EndsWithRule;
+use FormSchema\Validation\Rules\FileConstraintsRule;
 use FormSchema\Validation\Rules\NotBetweenRule;
 use FormSchema\Validation\Rules\NumericComparisonRule;
 use FormSchema\Validation\Rules\PhoneRule;
@@ -18,8 +22,10 @@ use FormSchema\Validation\Rules\RequiredWithAllNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithoutAllNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithoutNonEmptyRule;
+use FormSchema\Validation\Rules\StepRule;
 use FormSchema\Validation\Rules\StartsWithRule;
 use FormSchema\Validation\Rules\StringRule;
+use FormSchema\Validation\Rules\TimeRule;
 use Rakit\Validation\Rule;
 use Rakit\Validation\RuleNotFoundException;
 use Rakit\Validation\Validator;
@@ -61,6 +67,16 @@ class SubmissionValidator
                         $messages["{$key}:required"] = 'This field is required.';
                     }
 
+                    $extraRules = [];
+                    $this->applyConstraints(
+                        $validator,
+                        $field,
+                        $key,
+                        $data,
+                        $fieldRules,
+                        $extraRules,
+                    );
+
                     $validations = $field['validations'] ?? [];
                     if (is_array($validations)) {
                         foreach ($validations as $rule) {
@@ -86,6 +102,14 @@ class SubmissionValidator
 
                     if ([] !== $fieldRules) {
                         $rules[$key] = $fieldRules;
+                    }
+
+                    foreach ($extraRules as $extraKey => $extraRuleList) {
+                        if ([] === $extraRuleList) {
+                            continue;
+                        }
+
+                        $rules[$extraKey] = array_merge($rules[$extraKey] ?? [], $extraRuleList);
                     }
                 }
             }
@@ -139,6 +163,7 @@ class SubmissionValidator
         $validator = new Validator();
         $validator->allowRuleOverride(true);
 
+        $validator->setValidator('boolean', new BooleanRule());
         $validator->setValidator('after', new AfterRule());
         $validator->setValidator('before', new BeforeRule());
         $validator->setValidator('regex', new RegexRule());
@@ -158,6 +183,10 @@ class SubmissionValidator
         $validator->addValidator('gte', new NumericComparisonRule('>=', 'The :attribute must be greater than or equal to :target.'));
         $validator->addValidator('lt', new NumericComparisonRule('<', 'The :attribute must be less than :target.'));
         $validator->addValidator('lte', new NumericComparisonRule('<=', 'The :attribute must be less than or equal to :target.'));
+        $validator->addValidator('time', new TimeRule());
+        $validator->addValidator('datetime', new DateTimeRule());
+        $validator->addValidator('email_domains', new EmailDomainsRule());
+        $validator->addValidator('step', new StepRule());
 
         return $validator;
     }
@@ -300,5 +329,288 @@ class SubmissionValidator
         }
 
         return array_values(array_unique($keys));
+    }
+
+    /**
+     * @param array<string, mixed> $field
+     * @param array<string, mixed> $data
+     * @param array<int, Rule|string> $fieldRules
+     * @param array<string, array<int, Rule|string>> $extraRules
+     */
+    private function applyConstraints(
+        Validator $validator,
+        array $field,
+        string $key,
+        array &$data,
+        array &$fieldRules,
+        array &$extraRules,
+    ): void {
+        $type = $field['type'] ?? null;
+        if ( ! is_string($type) || '' === $type) {
+            return;
+        }
+
+        if (in_array($type, ['divider', 'spacing'], true)) {
+            return;
+        }
+
+        $constraints = $field['constraints'] ?? [];
+        if ( ! is_array($constraints)) {
+            $constraints = [];
+        }
+
+        if (in_array($type, ['file', 'image', 'video', 'document'], true)) {
+            if (array_key_exists($key, $data)) {
+                $data[$key] = $this->normalizeFileValue($data[$key]);
+            }
+
+            $fieldRules[] = new FileConstraintsRule(
+                $this->normalizeStringList($constraints['accept'] ?? []),
+                (bool) ($constraints['allow_multiple'] ?? false),
+                $this->toIntOrNull($constraints['min'] ?? null),
+                $this->toIntOrNull($constraints['max'] ?? null),
+                $this->toIntOrNull($constraints['max_file_size'] ?? null),
+                $this->toIntOrNull($constraints['max_total_size'] ?? null),
+            );
+
+            return;
+        }
+
+        // Type-driven baseline validators
+        switch ($type) {
+            case 'short-text':
+            case 'text':
+            case 'medium-text':
+            case 'long-text':
+            case 'address':
+            case 'country':
+                $fieldRules[] = 'string';
+                break;
+
+            case 'email':
+                $fieldRules[] = 'email';
+                $fieldRules[] = 'string';
+                break;
+
+            case 'phone':
+                $fieldRules[] = 'phone';
+                $fieldRules[] = 'string';
+                break;
+
+            case 'url':
+                $fieldRules[] = 'url';
+                $fieldRules[] = 'string';
+                break;
+
+            case 'number':
+            case 'rating':
+                $fieldRules[] = 'numeric';
+                break;
+
+            case 'boolean':
+                $fieldRules[] = 'boolean';
+                break;
+
+            case 'date':
+                $fieldRules[] = 'date';
+                break;
+
+            case 'time':
+                $fieldRules[] = 'time';
+                break;
+
+            case 'datetime':
+                $fieldRules[] = 'datetime';
+                break;
+
+            case 'tag':
+                $fieldRules[] = 'array';
+                break;
+        }
+
+        // Text length constraints
+        if (array_key_exists('min_length', $constraints) && is_numeric($constraints['min_length'])) {
+            $rule = $validator('min', $constraints['min_length']);
+            $fieldRules[] = $rule;
+        }
+
+        if (array_key_exists('max_length', $constraints) && is_numeric($constraints['max_length'])) {
+            $rule = $validator('max', $constraints['max_length']);
+            $fieldRules[] = $rule;
+        }
+
+        // Numeric/count constraints
+        if (array_key_exists('min', $constraints) && is_numeric($constraints['min'])) {
+            if (in_array($type, ['number', 'rating', 'tag', 'options'], true)) {
+                $fieldRules[] = $validator('min', $constraints['min']);
+            }
+        }
+
+        if (array_key_exists('max', $constraints) && is_numeric($constraints['max'])) {
+            if (in_array($type, ['number', 'rating', 'tag', 'options'], true)) {
+                $fieldRules[] = $validator('max', $constraints['max']);
+            }
+        }
+
+        // Step constraint (numbers only)
+        if ('number' === $type && array_key_exists('step', $constraints) && is_numeric($constraints['step'])) {
+            $base = (array_key_exists('min', $constraints) && is_numeric($constraints['min']))
+                ? $constraints['min']
+                : 0;
+
+            $fieldRules[] = $validator('step', $constraints['step'], $base);
+        }
+
+        // Email domain constraints
+        if ('email' === $type) {
+            $allowed = $this->normalizeStringList($constraints['allowed_domains'] ?? []);
+            $disallowed = $this->normalizeStringList($constraints['disallowed_domains'] ?? []);
+
+            if ([] !== $allowed || [] !== $disallowed) {
+                $fieldRules[] = $validator('email_domains', $allowed, $disallowed);
+            }
+        }
+
+        // Country allow/exclude constraints
+        if ('country' === $type) {
+            $allowCountries = $this->normalizeStringList($constraints['allow_countries'] ?? []);
+            if ([] !== $allowCountries) {
+                $rule = $this->toRakitRule($validator, 'in', $allowCountries);
+                if (null !== $rule) {
+                    $fieldRules[] = $rule;
+                }
+            }
+
+            $excludeCountries = $this->normalizeStringList($constraints['exclude_countries'] ?? []);
+            if ([] !== $excludeCountries) {
+                $rule = $this->toRakitRule($validator, 'not_in', $excludeCountries);
+                if (null !== $rule) {
+                    $fieldRules[] = $rule;
+                }
+            }
+        }
+
+        // Options selection constraints
+        if ('options' === $type) {
+            $optionProps = $field['option_properties'] ?? null;
+            if (is_array($optionProps)) {
+                $optionType = $optionProps['type'] ?? 'select';
+                if ( ! is_string($optionType) || '' === $optionType) {
+                    $optionType = 'select';
+                }
+
+                $allowedKeys = [];
+                $optionData = $optionProps['data'] ?? [];
+                if (is_array($optionData)) {
+                    foreach ($optionData as $opt) {
+                        if (is_array($opt) && isset($opt['key']) && is_string($opt['key']) && '' !== $opt['key']) {
+                            $allowedKeys[] = $opt['key'];
+                        }
+                    }
+                }
+
+                $allowedKeys = array_values(array_unique($allowedKeys));
+
+                if ([] !== $allowedKeys) {
+                    if (in_array($optionType, ['select', 'radio'], true)) {
+                        $rule = $this->toRakitRule($validator, 'in', $allowedKeys);
+                        if (null !== $rule) {
+                            $fieldRules[] = $rule;
+                        }
+                    } elseif (in_array($optionType, ['multi-select', 'checkbox'], true)) {
+                        $fieldRules[] = 'array';
+
+                        $maxSelect = $this->toIntOrNull($optionProps['max_select'] ?? null);
+                        if (null !== $maxSelect) {
+                            $fieldRules[] = $validator('max', $maxSelect);
+                        }
+
+                        $rule = $this->toRakitRule($validator, 'in', $allowedKeys);
+                        if (null !== $rule) {
+                            $extraRules["{$key}.*"] ??= [];
+                            $extraRules["{$key}.*"][] = $rule;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function normalizeStringList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if ( ! is_array($value)) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($value as $item) {
+            if ( ! is_string($item)) {
+                continue;
+            }
+
+            $item = trim($item);
+            if ('' === $item) {
+                continue;
+            }
+
+            $items[] = $item;
+        }
+
+        return array_values(array_unique($items));
+    }
+
+    private function toIntOrNull(mixed $value): ?int
+    {
+        if (is_int($value)) {
+            return $value;
+        }
+
+        if (is_float($value)) {
+            return (int) $value;
+        }
+
+        if (is_string($value)) {
+            $trimmed = trim($value);
+            if ('' === $trimmed) {
+                return null;
+            }
+
+            return is_numeric($trimmed) ? (int) $trimmed : null;
+        }
+
+        return null;
+    }
+
+    private function normalizeFileValue(mixed $value): mixed
+    {
+        if ( ! is_array($value)) {
+            return $value;
+        }
+
+        if (array_key_exists('error', $value) && is_numeric($value['error']) && (int) $value['error'] === UPLOAD_ERR_NO_FILE) {
+            return null;
+        }
+
+        if (array_keys($value) !== range(0, count($value) - 1)) {
+            return $value;
+        }
+
+        $filtered = [];
+        foreach ($value as $item) {
+            if (is_array($item) && array_key_exists('error', $item) && is_numeric($item['error']) && (int) $item['error'] === UPLOAD_ERR_NO_FILE) {
+                continue;
+            }
+
+            $filtered[] = $item;
+        }
+
+        return [] === $filtered ? null : $filtered;
     }
 }
