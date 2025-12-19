@@ -1,12 +1,36 @@
-## Form Schema (PHP)
+# Form Schema Validator (PHP)
 
-Small, framework-agnostic validator for the form schema used by the builder.
+Lightweight, framework-agnostic validators for the form-builder schema and user submissions.
 
-### Install
+## Requirements
+
+- PHP `^8.2`
+
+## Installation
 
 ```bash
 composer require form-builder/form-schema-validator
 ```
+
+### Local/path install (optional)
+
+If you are developing against this package inside a monorepo, you can install it via a Composer `path` repository:
+
+```json
+{
+  "repositories": [
+    {
+      "type": "path",
+      "url": "path/to/form-builder/package/php"
+    }
+  ],
+  "require": {
+    "form-builder/form-schema-validator": "*"
+  }
+}
+```
+
+## Usage
 
 ### API
 
@@ -19,6 +43,41 @@ composer require form-builder/form-schema-validator
 - `FormSchema\ValidationResult`
   - `isValid(): bool`
   - `errors(): array<string, string>`
+
+### Quick start
+
+```php
+use FormSchema\SubmissionValidator;
+
+$schema = [
+    'form' => [
+        'pages' => [
+            [
+                'sections' => [
+                    [
+                        'fields' => [
+                            [
+                                'key' => 'age',
+                                'type' => 'number',
+                                'required' => true,
+                                'constraints' => ['min' => 18],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ],
+    ],
+];
+
+$payload = ['age' => 17];
+
+$result = (new SubmissionValidator())->validate($schema, $payload);
+
+if (! $result->isValid()) {
+    var_dump($result->errors()); // ['age' => '...']
+}
+```
 
 ### Schema validation
 
@@ -70,6 +129,16 @@ Each field may define `validations` as an array of rules:
 
 All rules (except `required` and the `required_*` variants) treat empty values as "pass" (i.e. optional fields only validate when present).
 
+#### Field references in rule params
+
+Some rules support pointing at another field value instead of a literal:
+
+```php
+['rule' => 'gt', 'params' => ['{field:min_age}']],
+```
+
+The `{field:...}` syntax is also supported for `before` / `after`.
+
 #### Field constraints
 
 In addition to `validations`, the validator will also enforce `constraints` by field type, for example:
@@ -119,3 +188,13 @@ In addition to `validations`, the validator will also enforce `constraints` by f
 | `ends_with` | `[suffix, ...]` | String must end with any provided suffix. |
 
 Option fields must provide `option_properties.data`.
+
+## Testing
+
+```bash
+composer test
+```
+
+## License
+
+MIT
