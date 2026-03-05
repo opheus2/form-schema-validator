@@ -64,7 +64,7 @@ final class EmailDomainsRule extends Rule
                 continue;
             }
 
-            $domain = strtolower(trim($domain));
+            $domain = mb_strtolower(mb_trim($domain));
             if ('' === $domain) {
                 continue;
             }
@@ -77,12 +77,12 @@ final class EmailDomainsRule extends Rule
 
     private function emailDomain(string $email): ?string
     {
-        $at = strrpos($email, '@');
+        $at = mb_strrpos($email, '@');
         if (false === $at) {
             return null;
         }
 
-        $domain = strtolower(trim(substr($email, $at + 1)));
+        $domain = mb_strtolower(mb_trim(mb_substr($email, $at + 1)));
 
         return '' === $domain ? null : $domain;
     }
@@ -90,10 +90,9 @@ final class EmailDomainsRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
     }
 }
-

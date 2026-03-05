@@ -12,7 +12,7 @@ class StartsWithRule extends Rule
 
     public function fillParameters(array $params): Rule
     {
-        if (count($params) === 1 && is_array($params[0])) {
+        if (1 === count($params) && is_array($params[0])) {
             $params = $params[0];
         }
 
@@ -52,10 +52,9 @@ class StartsWithRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
     }
 }
-

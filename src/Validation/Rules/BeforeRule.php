@@ -43,7 +43,7 @@ class BeforeRule extends Rule
             return null;
         }
 
-        $key = substr($param, 7, -1);
+        $key = mb_substr($param, 7, -1);
 
         return '' === $key ? null : $key;
     }
@@ -62,10 +62,9 @@ class BeforeRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
     }
 }
-

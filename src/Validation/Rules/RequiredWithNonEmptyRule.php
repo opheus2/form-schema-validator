@@ -37,4 +37,3 @@ class RequiredWithNonEmptyRule extends Required
         return true;
     }
 }
-

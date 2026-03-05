@@ -18,10 +18,9 @@ class StringRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
     }
 }
-

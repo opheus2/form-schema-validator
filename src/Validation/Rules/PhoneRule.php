@@ -16,16 +16,15 @@ class PhoneRule extends Rule
             return true;
         }
 
-        return preg_match('/^[0-9 +().-]{6,}$/', (string) $value) === 1;
+        return 1 === preg_match('/^[0-9 +().-]{6,}$/', (string) $value);
     }
 
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
     }
 }
-

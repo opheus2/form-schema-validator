@@ -38,4 +38,3 @@ class RequiredIfAcceptedRule extends Required
         return true;
     }
 }
-

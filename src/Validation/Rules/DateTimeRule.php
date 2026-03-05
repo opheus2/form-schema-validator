@@ -21,7 +21,7 @@ final class DateTimeRule extends Rule
             return false;
         }
 
-        $value = trim($value);
+        $value = mb_trim($value);
 
         $formats = [
             'Y-m-d\\TH:i',
@@ -47,10 +47,9 @@ final class DateTimeRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
     }
 }
-

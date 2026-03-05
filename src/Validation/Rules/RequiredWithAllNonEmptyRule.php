@@ -37,4 +37,3 @@ class RequiredWithAllNonEmptyRule extends Required
         return $required->check($value, []);
     }
 }
-

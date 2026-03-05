@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use FormSchema\SubmissionValidator;
 use PHPUnit\Framework\TestCase;
+use FormSchema\SubmissionValidator;
 
 class SubmissionConstraintsTest extends TestCase
 {
@@ -31,7 +31,7 @@ class SubmissionConstraintsTest extends TestCase
         ];
     }
 
-    public function testTextConstraintsValidateLength(): void
+    public function test_text_constraints_validate_length(): void
     {
         $schema = $this->schemaForField([
             'key' => 'bio',
@@ -48,7 +48,7 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['bio' => 'abcdefg'])->isValid());
     }
 
-    public function testNumberConstraintsValidateNumericRangeAndStep(): void
+    public function test_number_constraints_validate_numeric_range_and_step(): void
     {
         $schema = $this->schemaForField([
             'key' => 'amount',
@@ -66,7 +66,7 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['amount' => 1001])->isValid());
     }
 
-    public function testTagConstraintsValidateCount(): void
+    public function test_tag_constraints_validate_count(): void
     {
         $schema = $this->schemaForField([
             'key' => 'tags',
@@ -82,7 +82,7 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['tags' => ['a', 'b', 'c', 'd']])->isValid());
     }
 
-    public function testEmailConstraintsValidateDomains(): void
+    public function test_email_constraints_validate_domains(): void
     {
         $schema = $this->schemaForField([
             'key' => 'email',
@@ -100,7 +100,7 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertTrue($this->validator()->validate($schema, ['email' => 'user@google.com'])->isValid());
     }
 
-    public function testCountryConstraintsValidateAllowAndExclude(): void
+    public function test_country_constraints_validate_allow_and_exclude(): void
     {
         $schema = $this->schemaForField([
             'key' => 'country',
@@ -116,7 +116,7 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['country' => 'RU'])->isValid());
     }
 
-    public function testFileConstraintsValidateAcceptCountAndSize(): void
+    public function test_file_constraints_validate_accept_count_and_size(): void
     {
         $schema = $this->schemaForField([
             'key' => 'image',
@@ -177,7 +177,7 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['image' => [$maxSize, $file2]])->isValid());
     }
 
-    public function testOptionsConstraintsValidateAllowedValuesAndMaxSelect(): void
+    public function test_options_constraints_validate_allowed_values_and_max_select(): void
     {
         $schema = $this->schemaForField([
             'key' => 'choice',
@@ -198,7 +198,7 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['choice' => ['a', 'nope']])->isValid());
     }
 
-    public function testOptionalBooleanFieldCanBeMissing(): void
+    public function test_optional_boolean_field_can_be_missing(): void
     {
         $schema = $this->schemaForField([
             'key' => 'agree',

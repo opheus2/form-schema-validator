@@ -41,4 +41,3 @@ class RequiredIfDeclinedRule extends Required
         return in_array($value, [false, 0, '0', 'false', 'off', 'no'], true);
     }
 }
-

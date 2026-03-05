@@ -25,7 +25,7 @@ final class BooleanRule extends Rule
         }
 
         if (is_string($value)) {
-            $normalized = strtolower(trim($value));
+            $normalized = mb_strtolower(mb_trim($value));
 
             return in_array(
                 $normalized,
@@ -40,7 +40,7 @@ final class BooleanRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;

@@ -3,12 +3,12 @@
 declare(strict_types=1);
 
 use FormSchema\SchemaValidator;
-use FormSchema\ValidationResult;
 use PHPUnit\Framework\TestCase;
+use FormSchema\ValidationResult;
 
 class SchemaValidatorTest extends TestCase
 {
-    public function testFailsWhenFormIsMissing(): void
+    public function test_fails_when_form_is_missing(): void
     {
         $validator = new SchemaValidator();
 
@@ -19,7 +19,7 @@ class SchemaValidatorTest extends TestCase
         $this->assertArrayHasKey('form', $result->errors());
     }
 
-    public function testValidatesPresenceOfPagesSectionsAndFields(): void
+    public function test_validates_presence_of_pages_sections_and_fields(): void
     {
         $validator = new SchemaValidator();
 
@@ -49,7 +49,7 @@ class SchemaValidatorTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testRejectsInvalidFieldType(): void
+    public function test_rejects_invalid_field_type(): void
     {
         $validator = new SchemaValidator();
 

@@ -4,30 +4,30 @@ declare(strict_types=1);
 
 namespace FormSchema;
 
+use Rakit\Validation\Rule;
 use InvalidArgumentException;
+use Rakit\Validation\Validator;
+use FormSchema\Validation\Rules\TimeRule;
 use FormSchema\Validation\Rules\AfterRule;
-use FormSchema\Validation\Rules\BeforeRule;
-use FormSchema\Validation\Rules\BooleanRule;
-use FormSchema\Validation\Rules\DateTimeRule;
-use FormSchema\Validation\Rules\EmailDomainsRule;
-use FormSchema\Validation\Rules\EndsWithRule;
-use FormSchema\Validation\Rules\FileConstraintsRule;
-use FormSchema\Validation\Rules\NotBetweenRule;
-use FormSchema\Validation\Rules\NumericComparisonRule;
 use FormSchema\Validation\Rules\PhoneRule;
 use FormSchema\Validation\Rules\RegexRule;
+use FormSchema\Validation\Rules\BeforeRule;
+use FormSchema\Validation\Rules\StringRule;
+use Rakit\Validation\RuleNotFoundException;
+use FormSchema\Validation\Rules\BooleanRule;
+use FormSchema\Validation\Rules\DateTimeRule;
+use FormSchema\Validation\Rules\EndsWithRule;
+use FormSchema\Validation\Rules\NotBetweenRule;
+use FormSchema\Validation\Rules\StartsWithRule;
+use FormSchema\Validation\Rules\EmailDomainsRule;
+use FormSchema\Validation\Rules\FileConstraintsRule;
+use FormSchema\Validation\Rules\NumericComparisonRule;
 use FormSchema\Validation\Rules\RequiredIfAcceptedRule;
 use FormSchema\Validation\Rules\RequiredIfDeclinedRule;
-use FormSchema\Validation\Rules\RequiredWithAllNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithNonEmptyRule;
-use FormSchema\Validation\Rules\RequiredWithoutAllNonEmptyRule;
+use FormSchema\Validation\Rules\RequiredWithAllNonEmptyRule;
 use FormSchema\Validation\Rules\RequiredWithoutNonEmptyRule;
-use FormSchema\Validation\Rules\StartsWithRule;
-use FormSchema\Validation\Rules\StringRule;
-use FormSchema\Validation\Rules\TimeRule;
-use Rakit\Validation\Rule;
-use Rakit\Validation\RuleNotFoundException;
-use Rakit\Validation\Validator;
+use FormSchema\Validation\Rules\RequiredWithoutAllNonEmptyRule;
 
 class SubmissionValidator
 {
@@ -35,9 +35,9 @@ class SubmissionValidator
      * Validate a submission payload against a schema. Replacements are merged into the payload
      * before validation to supply contextual values not present on the form submission.
      *
-     * @param array<string, mixed> $schema
-     * @param array<string, mixed> $payload
-     * @param array<string, mixed> $replacements
+     * @param  array<string, mixed>  $schema
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $replacements
      */
     public function validate(array $schema, array $payload, array $replacements = []): ValidationResult
     {
@@ -56,6 +56,7 @@ class SubmissionValidator
                     $key = $field['key'] ?? null;
                     if ( ! is_string($key) || '' === $key) {
                         $errors["{$fieldPath}.key"] = 'Field key is required.';
+
                         continue;
                     }
 
@@ -127,8 +128,8 @@ class SubmissionValidator
     }
 
     /**
-     * @param array<string, mixed> $payload
-     * @param array<string, mixed> $replacements
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $replacements
      */
     public function assertValid(array $schema, array $payload, array $replacements = []): void
     {
@@ -142,15 +143,14 @@ class SubmissionValidator
     }
 
     /**
-     * @param array<int|string, mixed> $params
-     *
+     * @param  array<int|string, mixed>  $params
      * @return array<int, mixed>
      */
     private function normalizeParams(array $params): array
     {
         $params = array_values($params);
 
-        if (count($params) === 1 && is_array($params[0])) {
+        if (1 === count($params) && is_array($params[0])) {
             $params = array_values($params[0]);
         }
 
@@ -190,7 +190,7 @@ class SubmissionValidator
     }
 
     /**
-     * @param array<int, mixed> $params
+     * @param  array<int, mixed>  $params
      */
     private function toRakitRule(Validator $validator, string $rule, array $params): Rule|string|null
     {
@@ -289,7 +289,7 @@ class SubmissionValidator
             return null;
         }
 
-        $key = substr($param, 7, -1);
+        $key = mb_substr($param, 7, -1);
 
         return '' === $key ? null : $key;
     }
@@ -309,8 +309,7 @@ class SubmissionValidator
     }
 
     /**
-     * @param array<int, mixed> $params
-     *
+     * @param  array<int, mixed>  $params
      * @return array<int, string>
      */
     private function normalizeFieldKeys(array $params): array
@@ -330,10 +329,10 @@ class SubmissionValidator
     }
 
     /**
-     * @param array<string, mixed> $field
-     * @param array<string, mixed> $data
-     * @param array<int, Rule|string> $fieldRules
-     * @param array<string, array<int, Rule|string>> $extraRules
+     * @param  array<string, mixed>  $field
+     * @param  array<string, mixed>  $data
+     * @param  array<int, Rule|string>  $fieldRules
+     * @param  array<string, array<int, Rule|string>>  $extraRules
      */
     private function applyConstraints(
         Validator $validator,
@@ -544,7 +543,7 @@ class SubmissionValidator
                 continue;
             }
 
-            $item = trim($item);
+            $item = mb_trim($item);
             if ('' === $item) {
                 continue;
             }
@@ -566,7 +565,7 @@ class SubmissionValidator
         }
 
         if (is_string($value)) {
-            $trimmed = trim($value);
+            $trimmed = mb_trim($value);
             if ('' === $trimmed) {
                 return null;
             }
@@ -583,7 +582,7 @@ class SubmissionValidator
             return $value;
         }
 
-        if (array_key_exists('error', $value) && is_numeric($value['error']) && (int) $value['error'] === UPLOAD_ERR_NO_FILE) {
+        if (array_key_exists('error', $value) && is_numeric($value['error']) && UPLOAD_ERR_NO_FILE === (int) $value['error']) {
             return null;
         }
 
@@ -593,7 +592,7 @@ class SubmissionValidator
 
         $filtered = [];
         foreach ($value as $item) {
-            if (is_array($item) && array_key_exists('error', $item) && is_numeric($item['error']) && (int) $item['error'] === UPLOAD_ERR_NO_FILE) {
+            if (is_array($item) && array_key_exists('error', $item) && is_numeric($item['error']) && UPLOAD_ERR_NO_FILE === (int) $item['error']) {
                 continue;
             }
 

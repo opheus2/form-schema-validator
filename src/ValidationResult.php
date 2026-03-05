@@ -12,7 +12,7 @@ class ValidationResult
     private array $errors;
 
     /**
-     * @param array<string, string> $errors
+     * @param  array<string, string>  $errors
      */
     public function __construct(array $errors = [])
     {

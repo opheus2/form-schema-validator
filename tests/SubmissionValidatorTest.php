@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use FormSchema\SubmissionValidator;
 use PHPUnit\Framework\TestCase;
+use FormSchema\SubmissionValidator;
 
 class SubmissionValidatorTest extends TestCase
 {
@@ -48,7 +48,7 @@ class SubmissionValidatorTest extends TestCase
         ],
     ];
 
-    public function testPassesValidSubmission(): void
+    public function test_passes_valid_submission(): void
     {
         $validator = new SubmissionValidator();
 
@@ -62,7 +62,7 @@ class SubmissionValidatorTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testFailsRequiredAndValidationRules(): void
+    public function test_fails_required_and_validation_rules(): void
     {
         $validator = new SubmissionValidator();
 
@@ -78,7 +78,7 @@ class SubmissionValidatorTest extends TestCase
         $this->assertArrayHasKey('email', $result->errors());
     }
 
-    public function testHonorsReplacementsForMissingValues(): void
+    public function test_honors_replacements_for_missing_values(): void
     {
         $validator = new SubmissionValidator();
 

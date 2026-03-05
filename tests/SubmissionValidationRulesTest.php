@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use FormSchema\SubmissionValidator;
 use PHPUnit\Framework\TestCase;
+use FormSchema\SubmissionValidator;
 
 class SubmissionValidationRulesTest extends TestCase
 {
@@ -31,7 +31,7 @@ class SubmissionValidationRulesTest extends TestCase
         ];
     }
 
-    public function testStringRules(): void
+    public function test_string_rules(): void
     {
         $field = [
             'key' => 'text',
@@ -51,7 +51,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testNumericRules(): void
+    public function test_numeric_rules(): void
     {
         $field = [
             'key' => 'age',
@@ -70,7 +70,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testNumericGreaterAndLessThanRules(): void
+    public function test_numeric_greater_and_less_than_rules(): void
     {
         $schema = $this->schemaForField([
             'key' => 'age',
@@ -89,7 +89,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['age' => 30])->isValid());
     }
 
-    public function testNumericGreaterOrEqualAndLessOrEqualRules(): void
+    public function test_numeric_greater_or_equal_and_less_or_equal_rules(): void
     {
         $schema = $this->schemaForField([
             'key' => 'age',
@@ -108,7 +108,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['age' => 31])->isValid());
     }
 
-    public function testNumericComparisonRulesSupportFieldRefs(): void
+    public function test_numeric_comparison_rules_support_field_refs(): void
     {
         $schema = $this->schemaForField([
             'key' => 'b',
@@ -124,7 +124,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['a' => 5, 'b' => 5])->isValid());
     }
 
-    public function testBooleanRule(): void
+    public function test_boolean_rule(): void
     {
         $field = [
             'key' => 'active',
@@ -139,7 +139,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testEmailRule(): void
+    public function test_email_rule(): void
     {
         $field = [
             'key' => 'email',
@@ -154,7 +154,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testInAndNotInRules(): void
+    public function test_in_and_not_in_rules(): void
     {
         $field = [
             'key' => 'color',
@@ -170,7 +170,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testRegexRule(): void
+    public function test_regex_rule(): void
     {
         $field = [
             'key' => 'slug',
@@ -185,7 +185,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testDateComparisons(): void
+    public function test_date_comparisons(): void
     {
         $field = [
             'key' => 'start',
@@ -200,7 +200,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
-    public function testRequiredVariants(): void
+    public function test_required_variants(): void
     {
         $field = [
             'key' => 'comment',
@@ -218,7 +218,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($failed->isValid());
     }
 
-    public function testRequiredVariantsSupportMultipleParamsAndFieldRefs(): void
+    public function test_required_variants_support_multiple_params_and_field_refs(): void
     {
         $field = [
             'key' => 'comment',
@@ -238,7 +238,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertArrayHasKey('comment', $required->errors());
     }
 
-    public function testRequiredWithAndWithoutSupportMultipleFieldsAndFieldRefs(): void
+    public function test_required_with_and_without_support_multiple_fields_and_field_refs(): void
     {
         // required_with: required when any present
         $schemaRequiredWith = $this->schemaForField([
@@ -286,7 +286,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($this->validator()->validate($schemaRequiredWithoutAll, ['a' => 1])->isValid());
     }
 
-    public function testStartsWithAndEndsWithSupportMultipleValues(): void
+    public function test_starts_with_and_ends_with_support_multiple_values(): void
     {
         $schema = $this->schemaForField([
             'key' => 'phrase',
@@ -301,7 +301,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['phrase' => 'nope'])->isValid());
     }
 
-    public function testBeforeAndAfterSupportFieldRefs(): void
+    public function test_before_and_after_support_field_refs(): void
     {
         $schema = $this->schemaForField([
             'key' => 'end',
@@ -315,7 +315,7 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['start' => '2024-01-02', 'end' => '2024-01-01'])->isValid());
     }
 
-    public function testEndsWithFailsWhenInvalid(): void
+    public function test_ends_with_fails_when_invalid(): void
     {
         $field = [
             'key' => 'phrase',

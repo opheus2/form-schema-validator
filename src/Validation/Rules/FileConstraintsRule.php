@@ -9,7 +9,7 @@ use Rakit\Validation\Rule;
 final class FileConstraintsRule extends Rule
 {
     /**
-     * @param array<int, string> $accept
+     * @param  array<int, string>  $accept
      */
     public function __construct(
         private readonly array $accept = [],
@@ -84,7 +84,7 @@ final class FileConstraintsRule extends Rule
                     return false;
                 }
 
-                if ( ! in_array(strtolower($mime), $accept, true)) {
+                if ( ! in_array(mb_strtolower($mime), $accept, true)) {
                     $this->message = 'The :attribute contains a file with an invalid type.';
 
                     return false;
@@ -190,20 +190,20 @@ final class FileConstraintsRule extends Rule
         if (is_array($file)) {
             $type = $file['type'] ?? null;
 
-            return is_string($type) && '' !== trim($type) ? $type : null;
+            return is_string($type) && '' !== mb_trim($type) ? $type : null;
         }
 
         if (is_object($file)) {
             if (method_exists($file, 'getMimeType')) {
                 $type = $file->getMimeType();
-                if (is_string($type) && '' !== trim($type)) {
+                if (is_string($type) && '' !== mb_trim($type)) {
                     return $type;
                 }
             }
 
             if (method_exists($file, 'getClientMimeType')) {
                 $type = $file->getClientMimeType();
-                if (is_string($type) && '' !== trim($type)) {
+                if (is_string($type) && '' !== mb_trim($type)) {
                     return $type;
                 }
             }
@@ -224,10 +224,9 @@ final class FileConstraintsRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
     }
 }
-

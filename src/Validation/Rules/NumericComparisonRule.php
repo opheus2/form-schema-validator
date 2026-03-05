@@ -4,8 +4,8 @@ declare(strict_types=1);
 
 namespace FormSchema\Validation\Rules;
 
-use InvalidArgumentException;
 use Rakit\Validation\Rule;
+use InvalidArgumentException;
 
 final class NumericComparisonRule extends Rule
 {
@@ -60,7 +60,7 @@ final class NumericComparisonRule extends Rule
             return null;
         }
 
-        $key = substr($param, 7, -1);
+        $key = mb_substr($param, 7, -1);
 
         return '' === $key ? null : $key;
     }
@@ -76,7 +76,7 @@ final class NumericComparisonRule extends Rule
         }
 
         if (is_string($value)) {
-            $trimmed = trim($value);
+            $trimmed = mb_trim($value);
             if ('' === $trimmed) {
                 return null;
             }
@@ -90,7 +90,7 @@ final class NumericComparisonRule extends Rule
     private function isEmpty(mixed $value): bool
     {
         if (is_string($value)) {
-            return '' === trim($value);
+            return '' === mb_trim($value);
         }
 
         return null === $value || [] === $value;
@@ -107,4 +107,3 @@ final class NumericComparisonRule extends Rule
         throw new InvalidArgumentException("Unsupported operator: {$operator}");
     }
 }
-

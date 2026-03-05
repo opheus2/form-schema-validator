@@ -78,6 +78,7 @@ class SchemaValidator
         $sections = $page['sections'] ?? null;
         if ( ! is_array($sections)) {
             $errors["{$path}.sections"] = 'Sections must be an array.';
+
             return $errors;
         }
 
