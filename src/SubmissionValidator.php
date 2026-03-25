@@ -19,6 +19,7 @@ use FormSchema\Validation\Rules\DateTimeRule;
 use FormSchema\Validation\Rules\EndsWithRule;
 use FormSchema\Validation\Rules\NotBetweenRule;
 use FormSchema\Validation\Rules\StartsWithRule;
+use FormSchema\Validation\Rules\StepRule;
 use FormSchema\Validation\Rules\EmailDomainsRule;
 use FormSchema\Validation\Rules\FileConstraintsRule;
 use FormSchema\Validation\Rules\NumericComparisonRule;
@@ -178,6 +179,7 @@ class SubmissionValidator
         $validator->addValidator('ends_with', new EndsWithRule());
         $validator->addValidator('required_if_accepted', new RequiredIfAcceptedRule());
         $validator->addValidator('required_if_declined', new RequiredIfDeclinedRule());
+        $validator->addValidator('step', new StepRule());
         $validator->addValidator('gt', new NumericComparisonRule('>', 'The :attribute must be greater than :target.'));
         $validator->addValidator('gte', new NumericComparisonRule('>=', 'The :attribute must be greater than or equal to :target.'));
         $validator->addValidator('lt', new NumericComparisonRule('<', 'The :attribute must be less than :target.'));
@@ -221,6 +223,8 @@ class SubmissionValidator
 
             case 'required_if_accepted':
             case 'required_if_declined':
+            case 'same':
+            case 'different':
                 $fieldKey = $this->normalizeFieldKey($params[0] ?? null);
                 if (null === $fieldKey) {
                     return null;
@@ -361,13 +365,23 @@ class SubmissionValidator
                 $data[$key] = $this->normalizeFileValue($data[$key]);
             }
 
+            $maxFileSize = $this->toIntOrNull($constraints['max_file_size'] ?? null);
+            if (null === $maxFileSize) {
+                $maxFileSize = $this->toIntOrNull($constraints['max_size'] ?? null);
+            }
+
+            $maxTotalSize = $this->toIntOrNull($constraints['max_total_size'] ?? null);
+            if (null === $maxTotalSize) {
+                $maxTotalSize = $this->toIntOrNull($constraints['total_file_size'] ?? null);
+            }
+
             $fieldRules[] = new FileConstraintsRule(
                 $this->normalizeStringList($constraints['accept'] ?? []),
                 (bool) ($constraints['allow_multiple'] ?? false),
                 $this->toIntOrNull($constraints['min'] ?? null),
                 $this->toIntOrNull($constraints['max'] ?? null),
-                $this->toIntOrNull($constraints['max_file_size'] ?? null),
-                $this->toIntOrNull($constraints['max_total_size'] ?? null),
+                $maxFileSize,
+                $maxTotalSize,
             );
 
             return;
@@ -446,6 +460,12 @@ class SubmissionValidator
         if (array_key_exists('max', $constraints) && is_numeric($constraints['max'])) {
             if (in_array($type, ['number', 'rating', 'tag', 'options'], true)) {
                 $fieldRules[] = $validator('max', $constraints['max']);
+            }
+        }
+
+        if (array_key_exists('step', $constraints) && is_numeric($constraints['step'])) {
+            if (in_array($type, ['number', 'rating'], true)) {
+                $fieldRules[] = $validator('step', $constraints['step']);
             }
         }
 

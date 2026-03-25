@@ -63,7 +63,22 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['amount' => 'abc'])->isValid());
         $this->assertFalse($this->validator()->validate($schema, ['amount' => 9])->isValid());
         $this->assertTrue($this->validator()->validate($schema, ['amount' => 12])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['amount' => 13])->isValid());
         $this->assertFalse($this->validator()->validate($schema, ['amount' => 1001])->isValid());
+    }
+
+    public function test_number_constraints_validate_decimal_step(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'amount',
+            'type' => 'number',
+            'constraints' => [
+                'step' => 0.25,
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['amount' => '1.25'])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['amount' => '1.3'])->isValid());
     }
 
     public function test_tag_constraints_validate_count(): void
@@ -175,6 +190,39 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['image' => [$file1, $file2, $file2]])->isValid());
         // total size too large (10000 + 6000 = 16000 > 15000)
         $this->assertFalse($this->validator()->validate($schema, ['image' => [$maxSize, $file2]])->isValid());
+    }
+
+    public function test_file_constraints_support_alias_size_keys(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'document',
+            'type' => 'document',
+            'constraints' => [
+                'accept' => ['application/pdf'],
+                'allow_multiple' => true,
+                'max_size' => 5000,
+                'total_file_size' => 8000,
+            ],
+        ]);
+
+        $smallPdf = [
+            'name' => 'a.pdf',
+            'type' => 'application/pdf',
+            'tmp_name' => '/tmp/a',
+            'size' => 4000,
+            'error' => 0,
+        ];
+        $bigPdf = [
+            'name' => 'b.pdf',
+            'type' => 'application/pdf',
+            'tmp_name' => '/tmp/b',
+            'size' => 6000,
+            'error' => 0,
+        ];
+
+        $this->assertTrue($this->validator()->validate($schema, ['document' => [$smallPdf]])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['document' => [$bigPdf]])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['document' => [$smallPdf, $smallPdf, $smallPdf]])->isValid());
     }
 
     public function test_options_constraints_validate_allowed_values_and_max_select(): void

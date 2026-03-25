@@ -315,6 +315,31 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['start' => '2024-01-02', 'end' => '2024-01-01'])->isValid());
     }
 
+    public function test_same_and_different_support_field_refs(): void
+    {
+        $sameSchema = $this->schemaForField([
+            'key' => 'confirm',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'same', 'params' => ['{field:password}']],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($sameSchema, ['password' => 'secret', 'confirm' => 'secret'])->isValid());
+        $this->assertFalse($this->validator()->validate($sameSchema, ['password' => 'secret', 'confirm' => 'nope'])->isValid());
+
+        $differentSchema = $this->schemaForField([
+            'key' => 'nickname',
+            'type' => 'text',
+            'validations' => [
+                ['rule' => 'different', 'params' => ['{field:email}']],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($differentSchema, ['email' => 'user@example.com', 'nickname' => 'someone'])->isValid());
+        $this->assertFalse($this->validator()->validate($differentSchema, ['email' => 'same', 'nickname' => 'same'])->isValid());
+    }
+
     public function test_ends_with_fails_when_invalid(): void
     {
         $field = [
