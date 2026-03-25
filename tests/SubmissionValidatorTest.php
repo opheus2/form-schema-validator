@@ -133,4 +133,23 @@ class SubmissionValidatorTest extends TestCase
         $this->assertCount(2, $result->errors()['code']);
         $this->assertSame([], $result->valid());
     }
+
+    public function test_valid_excludes_unknown_payload_keys(): void
+    {
+        $validator = new SubmissionValidator();
+
+        $payload = [
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+            'ignored_key' => 'should not be returned',
+        ];
+
+        $result = $validator->validate(self::SUBMISSION_SCHEMA, $payload);
+
+        $this->assertTrue($result->isValid());
+        $this->assertSame([
+            'name' => 'John Doe',
+            'email' => 'john@example.com',
+        ], $result->valid());
+    }
 }
