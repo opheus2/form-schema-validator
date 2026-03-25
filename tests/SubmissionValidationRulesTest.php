@@ -367,6 +367,113 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertFalse($this->validator()->validate($differentSchema, ['email' => 'same', 'nickname' => 'same'])->isValid());
     }
 
+    public function test_external_field_validations_support_strings_arrays_and_callables(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'username',
+            'type' => 'short-text',
+        ]);
+
+        $externalValidations = [
+            'fields' => [
+                'username' => [
+                    'required',
+                    ['rule' => 'starts_with', 'params' => ['USR-']],
+                    static fn (array $context) => $context['validator']('regex', '^[A-Z0-9-]+$'),
+                ],
+            ],
+        ];
+
+        $this->assertFalse($this->validator()->validate($schema, [], [], $externalValidations)->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['username' => 'usr-123'], [], $externalValidations)->isValid());
+        $this->assertTrue($this->validator()->validate($schema, ['username' => 'USR-123'], [], $externalValidations)->isValid());
+    }
+
+    public function test_external_custom_rule_resolver_is_applied_for_schema_rule_name(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'email',
+            'type' => 'email',
+            'validations' => [
+                ['rule' => 'corp_domain', 'params' => ['example.com']],
+            ],
+        ]);
+
+        $externalValidations = [
+            'rules' => [
+                'corp_domain' => static function (array $context) {
+                    $domain = (string) ($context['params'][0] ?? '');
+
+                    return $context['validator']('email_domains', [$domain], []);
+                },
+            ],
+        ];
+
+        $this->assertTrue($this->validator()->validate($schema, ['email' => 'user@example.com'], [], $externalValidations)->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['email' => 'user@other.com'], [], $externalValidations)->isValid());
+    }
+
+    public function test_external_validate_callable_can_return_bool(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'account_number',
+            'type' => 'short-text',
+        ]);
+
+        $externalValidations = [
+            'fields' => [
+                'account_number' => [
+                    [
+                        'validate' => static fn (array $context) => is_string($context['value']) && 10 === strlen($context['value']),
+                        'message' => 'Account number must be 10 digits.',
+                    ],
+                ],
+            ],
+        ];
+
+        $this->assertTrue($this->validator()->validate($schema, ['account_number' => '0123456789'], [], $externalValidations)->isValid());
+
+        $failed = $this->validator()->validate($schema, ['account_number' => '12345'], [], $externalValidations);
+        $this->assertFalse($failed->isValid());
+        $this->assertSame('Account number must be 10 digits.', $failed->errors()['account_number'] ?? null);
+    }
+
+    public function test_external_validate_callable_can_return_custom_message_payload(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'confirm_email',
+            'type' => 'email',
+        ]);
+
+        $externalValidations = [
+            'fields' => [
+                'confirm_email' => [
+                    [
+                        'validate' => static function (array $context) {
+                            $value = (string) ($context['value'] ?? '');
+                            $email = (string) ($context['get'])('email');
+
+                            if ($value === $email) {
+                                return true;
+                            }
+
+                            return [
+                                'valid' => false,
+                                'message' => 'Confirmation email does not match.',
+                            ];
+                        },
+                    ],
+                ],
+            ],
+        ];
+
+        $this->assertTrue($this->validator()->validate($schema, ['email' => 'user@example.com', 'confirm_email' => 'user@example.com'], [], $externalValidations)->isValid());
+
+        $failed = $this->validator()->validate($schema, ['email' => 'user@example.com', 'confirm_email' => 'other@example.com'], [], $externalValidations);
+        $this->assertFalse($failed->isValid());
+        $this->assertSame('Confirmation email does not match.', $failed->errors()['confirm_email'] ?? null);
+    }
+
     public function test_ends_with_fails_when_invalid(): void
     {
         $field = [

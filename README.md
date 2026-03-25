@@ -38,8 +38,8 @@ If you are developing against this package inside a monorepo, you can install it
   - `validate(array $schema): ValidationResult`
   - `assertValid(array $schema): void`
 - `FormSchema\SubmissionValidator`
-  - `validate(array $schema, array $payload, array $replacements = []): ValidationResult`
-  - `assertValid(array $schema, array $payload, array $replacements = []): void`
+  - `validate(array $schema, array $payload, array $replacements = [], array $validations = []): ValidationResult`
+  - `assertValid(array $schema, array $payload, array $replacements = [], array $validations = []): void`
 - `FormSchema\ValidationResult`
   - `isValid(): bool`
   - `errors(): array<string, string>`
@@ -116,7 +116,55 @@ $result = $validator->validate($schema, $payload, $context);
 if (! $result->isValid()) {
     // handle $result->errors()
 }
+
+// Optional: pass runtime validation extensions
+$custom = [
+  'fields' => [
+    'username' => [
+      'required',
+      ['rule' => 'starts_with', 'params' => ['USR-']],
+      static fn (array $context) => $context['validator']('regex', '^[A-Z0-9-]+$'),
+    ],
+  ],
+  'rules' => [
+    // map a custom schema rule name to a callable resolver
+    'corp_domain' => static fn (array $context) => $context['validator'](
+      'email_domains',
+      [(string) ($context['params'][0] ?? '')],
+      [],
+    ),
+  ],
+];
+
+$result = $validator->validate($schema, $payload, $context, $custom);
 ```
+
+#### Runtime validation extensions
+
+You can optionally pass a 4th argument to `validate()` / `assertValid()`:
+
+- `fields`: map of field key to extra validations.
+- `rules`: map of schema rule name to callable resolver.
+
+`fields[fieldKey]` entries can be:
+
+- a string rule name (e.g. `required`)
+- a schema-like array: `['rule' => 'min', 'params' => [3], 'message' => '...']`
+- a callable returning a `Rule`, string rule, array of rules, or `null`
+- a callable-validator entry: `['validate' => callable, 'message' => '...']`
+
+For `['validate' => callable]`, the callable receives the same context array and may return:
+
+- `true` / `null`: pass
+- `false`: fail (uses provided `message` or default)
+- `string`: fail with that message
+- `['valid' => bool, 'message' => string|null]`: explicit result payload
+
+Rule resolver callables receive a context array with:
+
+- `validator`, `schema`, `payload`, `replacements`, `data`
+- `field_key`, `field`, `rule`, `params`, `entry`
+- `default_rule_mapper` (closure for mapping to built-in rules)
 
 Each field may define `validations` as an array of rules:
 

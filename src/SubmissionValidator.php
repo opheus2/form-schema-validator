@@ -13,6 +13,7 @@ use FormSchema\Validation\Rules\PhoneRule;
 use FormSchema\Validation\Rules\RegexRule;
 use FormSchema\Validation\Rules\BeforeRule;
 use FormSchema\Validation\Rules\StringRule;
+use FormSchema\Validation\Rules\CallableValidationRule;
 use Rakit\Validation\RuleNotFoundException;
 use FormSchema\Validation\Rules\BooleanRule;
 use FormSchema\Validation\Rules\DateTimeRule;
@@ -39,8 +40,9 @@ class SubmissionValidator
      * @param  array<string, mixed>  $schema
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $replacements
+     * @param  array<string, mixed>  $validations
      */
-    public function validate(array $schema, array $payload, array $replacements = []): ValidationResult
+    public function validate(array $schema, array $payload, array $replacements = [], array $validations = []): ValidationResult
     {
         $errors = [];
         $data = array_merge($payload, $replacements);
@@ -48,6 +50,8 @@ class SubmissionValidator
         $messages = [];
 
         $validator = $this->makeValidator();
+        $customRuleResolvers = $this->customRuleResolvers($validations);
+        $fieldValidationOverrides = $this->fieldValidationOverrides($validations);
 
         $pages = $schema['form']['pages'] ?? [];
         foreach ($pages as $pi => $page) {
@@ -87,17 +91,59 @@ class SubmissionValidator
                             }
 
                             $params = $this->normalizeParams($rule['params'] ?? []);
-                            $mapped = $this->toRakitRule($validator, $name, $params);
+                            $mapped = null;
+
+                            if (isset($customRuleResolvers[$name])) {
+                                $mapped = $this->resolveRuleViaCallable(
+                                    $customRuleResolvers[$name],
+                                    $this->makeRuleContext(
+                                        $validator,
+                                        $schema,
+                                        $payload,
+                                        $replacements,
+                                        $data,
+                                        $key,
+                                        $field,
+                                        $name,
+                                        $params,
+                                        $rule,
+                                    ),
+                                );
+                            }
+
+                            if (null === $mapped) {
+                                $mapped = $this->toRakitRule($validator, $name, $params);
+                            }
+
                             if (null === $mapped) {
                                 continue;
                             }
 
-                            $fieldRules[] = $mapped;
+                            $this->appendResolvedRules($fieldRules, $mapped);
 
                             $message = $rule['message'] ?? null;
                             if (is_string($message) && '' !== $message) {
                                 $messages["{$key}:{$name}"] = $message;
                             }
+                        }
+                    }
+
+                    $customFieldValidations = $fieldValidationOverrides[$key] ?? null;
+                    if (is_array($customFieldValidations)) {
+                        foreach ($customFieldValidations as $validationEntry) {
+                            $this->applyValidationEntry(
+                                $validator,
+                                $schema,
+                                $payload,
+                                $replacements,
+                                $data,
+                                $key,
+                                $field,
+                                $messages,
+                                $fieldRules,
+                                $validationEntry,
+                                $customRuleResolvers,
+                            );
                         }
                     }
 
@@ -131,10 +177,11 @@ class SubmissionValidator
     /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $replacements
+     * @param  array<string, mixed>  $validations
      */
-    public function assertValid(array $schema, array $payload, array $replacements = []): void
+    public function assertValid(array $schema, array $payload, array $replacements = [], array $validations = []): void
     {
-        $result = $this->validate($schema, $payload, $replacements);
+        $result = $this->validate($schema, $payload, $replacements, $validations);
 
         if ($result->isValid()) {
             return;
@@ -620,5 +667,259 @@ class SubmissionValidator
         }
 
         return [] === $filtered ? null : $filtered;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validations
+     * @return array<string, callable>
+     */
+    private function customRuleResolvers(array $validations): array
+    {
+        $rules = $validations['rules'] ?? null;
+        if ( ! is_array($rules)) {
+            return [];
+        }
+
+        $resolvers = [];
+        foreach ($rules as $ruleName => $resolver) {
+            if ( ! is_string($ruleName) || '' === $ruleName || ! is_callable($resolver)) {
+                continue;
+            }
+
+            $resolvers[$ruleName] = $resolver;
+        }
+
+        return $resolvers;
+    }
+
+    /**
+     * @param  array<string, mixed>  $validations
+     * @return array<string, array<int, mixed>>
+     */
+    private function fieldValidationOverrides(array $validations): array
+    {
+        $fields = $validations['fields'] ?? null;
+        if ( ! is_array($fields)) {
+            return [];
+        }
+
+        $normalized = [];
+        foreach ($fields as $fieldKey => $entries) {
+            if ( ! is_string($fieldKey) || '' === $fieldKey || ! is_array($entries)) {
+                continue;
+            }
+
+            $normalized[$fieldKey] = array_values($entries);
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $replacements
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $field
+     * @param  array<int, mixed>  $params
+     * @param  array<string, mixed>|mixed  $entry
+     * @return array<string, mixed>
+     */
+    private function makeRuleContext(
+        Validator $validator,
+        array $schema,
+        array $payload,
+        array $replacements,
+        array $data,
+        string $fieldKey,
+        array $field,
+        string $ruleName,
+        array $params,
+        mixed $entry,
+    ): array {
+        return [
+            'validator' => $validator,
+            'schema' => $schema,
+            'payload' => $payload,
+            'replacements' => $replacements,
+            'data' => $data,
+            'field_key' => $fieldKey,
+            'field' => $field,
+            'rule' => $ruleName,
+            'params' => $params,
+            'entry' => $entry,
+            'default_rule_mapper' => fn (string $name, array $ruleParams = []) => $this->toRakitRule($validator, $name, $ruleParams),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     * @param  array<string, mixed>  $payload
+     * @param  array<string, mixed>  $replacements
+     * @param  array<string, mixed>  $data
+     * @param  array<string, mixed>  $field
+     * @param  array<string, string>  $messages
+     * @param  array<int, Rule|string>  $fieldRules
+     * @param  array<string, callable>  $customRuleResolvers
+     */
+    private function applyValidationEntry(
+        Validator $validator,
+        array $schema,
+        array $payload,
+        array $replacements,
+        array $data,
+        string $fieldKey,
+        array $field,
+        array &$messages,
+        array &$fieldRules,
+        mixed $entry,
+        array $customRuleResolvers,
+    ): void {
+        if (is_string($entry) && '' !== $entry) {
+            $mapped = $this->toRakitRule($validator, $entry, []);
+            if (null !== $mapped) {
+                $this->appendResolvedRules($fieldRules, $mapped);
+            }
+
+            return;
+        }
+
+        if (is_callable($entry)) {
+            $resolved = $this->resolveRuleViaCallable(
+                $entry,
+                $this->makeRuleContext(
+                    $validator,
+                    $schema,
+                    $payload,
+                    $replacements,
+                    $data,
+                    $fieldKey,
+                    $field,
+                    '',
+                    [],
+                    $entry,
+                ),
+            );
+
+            if (null === $resolved) {
+                return;
+            }
+
+            $this->appendResolvedRules($fieldRules, $resolved);
+
+            return;
+        }
+
+        if ( ! is_array($entry)) {
+            return;
+        }
+
+        if (isset($entry['validate']) && is_callable($entry['validate'])) {
+            $message = $entry['message'] ?? null;
+            $fieldRules[] = new CallableValidationRule(
+                $entry['validate'],
+                $this->makeRuleContext(
+                    $validator,
+                    $schema,
+                    $payload,
+                    $replacements,
+                    $data,
+                    $fieldKey,
+                    $field,
+                    '',
+                    [],
+                    $entry,
+                ),
+                is_string($message) ? $message : null,
+            );
+
+            return;
+        }
+
+        if (isset($entry['rule']) && is_string($entry['rule']) && '' !== $entry['rule']) {
+            $ruleName = $entry['rule'];
+            $params = $this->normalizeParams($entry['params'] ?? []);
+
+            $mapped = null;
+            if (isset($customRuleResolvers[$ruleName])) {
+                $mapped = $this->resolveRuleViaCallable(
+                    $customRuleResolvers[$ruleName],
+                    $this->makeRuleContext(
+                        $validator,
+                        $schema,
+                        $payload,
+                        $replacements,
+                        $data,
+                        $fieldKey,
+                        $field,
+                        $ruleName,
+                        $params,
+                        $entry,
+                    ),
+                );
+            }
+
+            if (null === $mapped) {
+                $mapped = $this->toRakitRule($validator, $ruleName, $params);
+            }
+
+            if (null === $mapped) {
+                return;
+            }
+
+            $this->appendResolvedRules($fieldRules, $mapped);
+
+            $message = $entry['message'] ?? null;
+            if (is_string($message) && '' !== $message) {
+                $messages["{$fieldKey}:{$ruleName}"] = $message;
+            }
+
+            return;
+        }
+
+        foreach (array_values($entry) as $nestedEntry) {
+            $this->applyValidationEntry(
+                $validator,
+                $schema,
+                $payload,
+                $replacements,
+                $data,
+                $fieldKey,
+                $field,
+                $messages,
+                $fieldRules,
+                $nestedEntry,
+                $customRuleResolvers,
+            );
+        }
+    }
+
+    private function resolveRuleViaCallable(callable $resolver, array $context): Rule|string|array|null
+    {
+        $resolved = $resolver($context);
+
+        if ($resolved instanceof Rule || is_string($resolved) || is_array($resolved) || null === $resolved) {
+            return $resolved;
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, Rule|string>  $targetRules
+     */
+    private function appendResolvedRules(array &$targetRules, Rule|string|array $resolved): void
+    {
+        if ($resolved instanceof Rule || is_string($resolved)) {
+            $targetRules[] = $resolved;
+
+            return;
+        }
+
+        foreach ($resolved as $item) {
+            if ($item instanceof Rule || is_string($item)) {
+                $targetRules[] = $item;
+            }
+        }
     }
 }
