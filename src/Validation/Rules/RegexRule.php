@@ -25,7 +25,57 @@ class RegexRule extends Rule
             return true;
         }
 
-        return 1 === preg_match($regex, (string) $value);
+        $pattern = $this->normalizePattern($regex);
+
+        if (false === @preg_match($pattern, '')) {
+            return false;
+        }
+
+        return 1 === preg_match($pattern, (string) $value);
+    }
+
+    private function normalizePattern(string $pattern): string
+    {
+        $trimmed = mb_trim($pattern);
+
+        if ('' === $trimmed) {
+            return '/^$/';
+        }
+
+        if ($this->isDelimitedRegex($trimmed)) {
+            return $trimmed;
+        }
+
+        return $this->wrapRegex($trimmed);
+    }
+
+    private function isDelimitedRegex(string $pattern): bool
+    {
+        if (mb_strlen($pattern) < 3) {
+            return false;
+        }
+
+        $delimiter = $pattern[0];
+        if (ctype_alnum($delimiter) || '\\' === $delimiter || ' ' === $delimiter) {
+            return false;
+        }
+
+        $last = strrpos($pattern, $delimiter);
+
+        return false !== $last && $last > 0;
+    }
+
+    private function wrapRegex(string $pattern): string
+    {
+        $delimiters = ['/', '#', '~', '%', '!'];
+
+        foreach ($delimiters as $delimiter) {
+            if ( ! str_contains($pattern, $delimiter)) {
+                return $delimiter . $pattern . $delimiter;
+            }
+        }
+
+        return '/' . str_replace('/', '\\/', $pattern) . '/';
     }
 
     private function isEmpty(mixed $value): bool

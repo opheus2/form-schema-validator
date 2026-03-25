@@ -183,7 +183,7 @@ In addition to `validations`, the validator will also enforce `constraints` by f
 | `datetime` | — | Validates `YYYY-MM-DDTHH:mm` (or seconds) and `YYYY-MM-DD HH:mm` variants. |
 | `before` | `[date]` | `strtotime` comparison vs target date (supports `{field:otherKey}` as the date source). |
 | `after` | `[date]` | `strtotime` comparison vs target date (supports `{field:otherKey}` as the date source). |
-| `regex` | `[pattern]` | `preg_match(pattern, value) === 1` (pattern includes delimiters). |
+| `regex` | `[pattern]` | `preg_match(pattern, value) === 1` (supports both delimited regex and plain patterns such as `^[A-Z0-9]+$`). |
 | `starts_with` | `[prefix, ...]` | String must start with any provided prefix. |
 | `ends_with` | `[suffix, ...]` | String must end with any provided suffix. |
 

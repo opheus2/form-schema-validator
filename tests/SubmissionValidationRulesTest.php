@@ -185,6 +185,33 @@ class SubmissionValidationRulesTest extends TestCase
         $this->assertTrue($result->isValid());
     }
 
+    public function test_regex_rule_accepts_pattern_without_delimiters(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'slug',
+            'type' => 'short-text',
+            'validations' => [
+                ['rule' => 'regex', 'params' => ['^[A-Z0-9]+$']],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['slug' => 'ABC123'])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['slug' => 'abc-123'])->isValid());
+    }
+
+    public function test_regex_rule_fails_for_invalid_pattern(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'slug',
+            'type' => 'short-text',
+            'validations' => [
+                ['rule' => 'regex', 'params' => ['[unclosed']],
+            ],
+        ]);
+
+        $this->assertFalse($this->validator()->validate($schema, ['slug' => 'anything'])->isValid());
+    }
+
     public function test_date_comparisons(): void
     {
         $field = [
