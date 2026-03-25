@@ -45,6 +45,7 @@ class SubmissionValidator
     public function validate(array $schema, array $payload, array $replacements = [], array $runtimeValidations = []): ValidationResult
     {
         $errors = [];
+        $validated = [];
         $data = array_merge($payload, $replacements);
         $rules = [];
         $messages = [];
@@ -60,7 +61,7 @@ class SubmissionValidator
                     $fieldPath = "form.pages[{$pi}].sections[{$si}].fields[{$fi}]";
                     $key = $field['key'] ?? null;
                     if ( ! is_string($key) || '' === $key) {
-                        $errors["{$fieldPath}.key"] = 'Field key is required.';
+                        $errors["{$fieldPath}.key"][] = 'Field key is required.';
 
                         continue;
                     }
@@ -151,6 +152,10 @@ class SubmissionValidator
                         $rules[$key] = $fieldRules;
                     }
 
+                    if (array_key_exists($key, $data)) {
+                        $validated[$key] = $data[$key];
+                    }
+
                     foreach ($extraRules as $extraKey => $extraRuleList) {
                         if ([] === $extraRuleList) {
                             continue;
@@ -167,11 +172,11 @@ class SubmissionValidator
             $validation->validate();
 
             if ($validation->fails()) {
-                $errors = array_merge($errors, $validation->errors()->firstOfAll());
+                $errors = $this->mergeErrors($errors, $this->normalizeValidationErrors($validation->errors()->toArray()));
             }
         }
 
-        return new ValidationResult($errors);
+        return new ValidationResult($errors, $validated);
     }
 
     /**
@@ -203,6 +208,60 @@ class SubmissionValidator
         }
 
         return $params;
+    }
+
+    /**
+     * @param  array<string, mixed>  $errors
+     * @return array<string, array<int, string>>
+     */
+    private function normalizeValidationErrors(array $errors): array
+    {
+        $normalized = [];
+
+        foreach ($errors as $field => $value) {
+            if (is_string($value)) {
+                $normalized[$field] = [$value];
+
+                continue;
+            }
+
+            if ( ! is_array($value)) {
+                continue;
+            }
+
+            $messages = [];
+            foreach ($value as $message) {
+                if (is_string($message)) {
+                    $messages[] = $message;
+                }
+            }
+
+            if ([] !== $messages) {
+                $normalized[$field] = array_values($messages);
+            }
+        }
+
+        return $normalized;
+    }
+
+    /**
+     * @param  array<string, array<int, string>>  $base
+     * @param  array<string, array<int, string>>  $extra
+     * @return array<string, array<int, string>>
+     */
+    private function mergeErrors(array $base, array $extra): array
+    {
+        foreach ($extra as $field => $messages) {
+            if (isset($base[$field])) {
+                $base[$field] = array_values(array_merge($base[$field], $messages));
+
+                continue;
+            }
+
+            $base[$field] = $messages;
+        }
+
+        return $base;
     }
 
     private function makeValidator(): Validator

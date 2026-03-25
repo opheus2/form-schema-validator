@@ -42,7 +42,8 @@ If you are developing against this package inside a monorepo, you can install it
   - `assertValid(array $schema, array $payload, array $replacements = [], array $validations = []): void`
 - `FormSchema\ValidationResult`
   - `isValid(): bool`
-  - `errors(): array<string, string>`
+  - `errors(): array<string, array<int, string>>`
+  - `valid(): array<string, mixed>`
 
 ### Quick start
 
@@ -75,7 +76,9 @@ $payload = ['age' => 17];
 $result = (new SubmissionValidator())->validate($schema, $payload);
 
 if (! $result->isValid()) {
-    var_dump($result->errors()); // ['age' => '...']
+    var_dump($result->errors()); // ['age' => ['The age must be at least 18.']]
+} else {
+  var_dump($result->valid()); // ['age' => 17]
 }
 ```
 

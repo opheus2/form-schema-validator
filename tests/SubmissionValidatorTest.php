@@ -60,6 +60,7 @@ class SubmissionValidatorTest extends TestCase
         $result = $validator->validate(self::SUBMISSION_SCHEMA, $payload);
 
         $this->assertTrue($result->isValid());
+        $this->assertSame($payload, $result->valid());
     }
 
     public function test_fails_required_and_validation_rules(): void
@@ -76,6 +77,9 @@ class SubmissionValidatorTest extends TestCase
         $this->assertFalse($result->isValid());
         $this->assertArrayHasKey('name', $result->errors());
         $this->assertArrayHasKey('email', $result->errors());
+        $this->assertIsArray($result->errors()['name']);
+        $this->assertIsArray($result->errors()['email']);
+        $this->assertSame([], $result->valid());
     }
 
     public function test_honors_replacements_for_missing_values(): void
@@ -88,5 +92,45 @@ class SubmissionValidatorTest extends TestCase
         $result = $validator->validate(self::SUBMISSION_SCHEMA, $payload, $replacements);
 
         $this->assertTrue($result->isValid());
+        $this->assertSame([
+            'name' => 'John Doe',
+            'terms' => 'yes',
+        ], $result->valid());
+    }
+
+    public function test_errors_returns_all_messages_per_field(): void
+    {
+        $validator = new SubmissionValidator();
+
+        $schema = [
+            'form' => [
+                'pages' => [
+                    [
+                        'sections' => [
+                            [
+                                'fields' => [
+                                    [
+                                        'key' => 'code',
+                                        'type' => 'short-text',
+                                        'required' => false,
+                                        'validations' => [
+                                            ['rule' => 'starts_with', 'params' => ['ab']],
+                                            ['rule' => 'ends_with', 'params' => ['yz']],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $validator->validate($schema, ['code' => 'xx']);
+
+        $this->assertFalse($result->isValid());
+        $this->assertArrayHasKey('code', $result->errors());
+        $this->assertCount(2, $result->errors()['code']);
+        $this->assertSame([], $result->valid());
     }
 }

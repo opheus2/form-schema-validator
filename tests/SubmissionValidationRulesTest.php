@@ -445,7 +445,7 @@ class SubmissionValidationRulesTest extends TestCase
 
         $failed = $this->validator()->validate($schema, ['account_number' => '12345'], [], $externalValidations);
         $this->assertFalse($failed->isValid());
-        $this->assertSame('Account number must be exactly 10 digits.', $failed->errors()['account_number'] ?? null);
+        $this->assertSame(['Account number must be exactly 10 digits.'], $failed->errors()['account_number'] ?? null);
     }
 
     public function test_external_validate_callable_can_return_bool(): void
@@ -470,7 +470,7 @@ class SubmissionValidationRulesTest extends TestCase
 
         $failed = $this->validator()->validate($schema, ['account_number' => '12345'], [], $externalValidations);
         $this->assertFalse($failed->isValid());
-        $this->assertSame('Account number must be 10 digits.', $failed->errors()['account_number'] ?? null);
+        $this->assertSame(['Account number must be 10 digits.'], $failed->errors()['account_number'] ?? null);
     }
 
     public function test_external_validate_callable_can_return_custom_message_payload(): void
@@ -506,7 +506,7 @@ class SubmissionValidationRulesTest extends TestCase
 
         $failed = $this->validator()->validate($schema, ['email' => 'user@example.com', 'confirm_email' => 'other@example.com'], [], $externalValidations);
         $this->assertFalse($failed->isValid());
-        $this->assertSame('Confirmation email does not match.', $failed->errors()['confirm_email'] ?? null);
+        $this->assertSame(['Confirmation email does not match.'], $failed->errors()['confirm_email'] ?? null);
     }
 
     public function test_ends_with_fails_when_invalid(): void
