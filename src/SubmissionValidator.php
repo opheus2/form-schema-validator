@@ -785,7 +785,7 @@ class SubmissionValidator
         }
 
         if (is_callable($entry)) {
-            $resolved = $this->resolveRuleViaCallable(
+            $fieldRules[] = new CallableValidationRule(
                 $entry,
                 $this->makeRuleContext(
                     $validator,
@@ -800,12 +800,6 @@ class SubmissionValidator
                     $entry,
                 ),
             );
-
-            if (null === $resolved) {
-                return;
-            }
-
-            $this->appendResolvedRules($fieldRules, $resolved);
 
             return;
         }
@@ -832,6 +826,32 @@ class SubmissionValidator
                 ),
                 is_string($message) ? $message : null,
             );
+
+            return;
+        }
+
+        if (isset($entry['resolver']) && is_callable($entry['resolver'])) {
+            $resolved = $this->resolveRuleViaCallable(
+                $entry['resolver'],
+                $this->makeRuleContext(
+                    $validator,
+                    $schema,
+                    $payload,
+                    $replacements,
+                    $data,
+                    $fieldKey,
+                    $field,
+                    '',
+                    [],
+                    $entry,
+                ),
+            );
+
+            if (null === $resolved) {
+                return;
+            }
+
+            $this->appendResolvedRules($fieldRules, $resolved);
 
             return;
         }

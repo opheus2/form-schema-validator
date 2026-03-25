@@ -379,7 +379,9 @@ class SubmissionValidationRulesTest extends TestCase
                 'username' => [
                     'required',
                     ['rule' => 'starts_with', 'params' => ['USR-']],
-                    static fn (array $context) => $context['validator']('regex', '^[A-Z0-9-]+$'),
+                    [
+                        'resolver' => static fn (array $context) => $context['validator']('regex', '^[A-Z0-9-]+$'),
+                    ],
                 ],
             ],
         ];
@@ -411,6 +413,39 @@ class SubmissionValidationRulesTest extends TestCase
 
         $this->assertTrue($this->validator()->validate($schema, ['email' => 'user@example.com'], [], $externalValidations)->isValid());
         $this->assertFalse($this->validator()->validate($schema, ['email' => 'user@other.com'], [], $externalValidations)->isValid());
+    }
+
+    public function test_external_field_bare_callable_validates_directly(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'account_number',
+            'type' => 'short-text',
+        ]);
+
+        $externalValidations = [
+            'fields' => [
+                'account_number' => [
+                    static function (array $context): array {
+                        $value = (string) ($context['value'] ?? '');
+
+                        if (preg_match('/^\\d{10}$/', $value) === 1) {
+                            return ['valid' => true];
+                        }
+
+                        return [
+                            'valid' => false,
+                            'message' => 'Account number must be exactly 10 digits.',
+                        ];
+                    },
+                ],
+            ],
+        ];
+
+        $this->assertTrue($this->validator()->validate($schema, ['account_number' => '0123456789'], [], $externalValidations)->isValid());
+
+        $failed = $this->validator()->validate($schema, ['account_number' => '12345'], [], $externalValidations);
+        $this->assertFalse($failed->isValid());
+        $this->assertSame('Account number must be exactly 10 digits.', $failed->errors()['account_number'] ?? null);
     }
 
     public function test_external_validate_callable_can_return_bool(): void

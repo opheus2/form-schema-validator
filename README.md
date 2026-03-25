@@ -154,15 +154,18 @@ $validator->validate($schema, $payload, $replacements, $runtimeValidations);
 
 - a string rule name (e.g. `required`)
 - a schema-like array: `['rule' => 'min', 'params' => [3], 'message' => '...']`
-- a callable returning a `Rule`, string rule, array of rules, or `null`
+- a bare callable (direct value validator)
 - a callable-validator entry: `['validate' => callable, 'message' => '...']`
+- a resolver entry: `['resolver' => callable]` for rule-mapping behavior
 
-For `['validate' => callable]`, the callable receives the same context array and may return:
+For bare callables (or `['validate' => callable]`), the callable receives the same context array and may return:
 
 - `true` / `null`: pass
 - `false`: fail (uses provided `message` or default)
 - `string`: fail with that message
 - `['valid' => bool, 'message' => string|null]`: explicit result payload
+
+Use `['resolver' => callable]` when the callable should return mapped validation rules (`Rule`, string rule, array of rules, or `null`) instead of pass/fail.
 
 Rule resolver callables receive a context array with:
 
