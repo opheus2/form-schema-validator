@@ -40,9 +40,9 @@ class SubmissionValidator
      * @param  array<string, mixed>  $schema
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $replacements
-     * @param  array<string, mixed>  $validations
+     * @param  array<string, mixed>  $runtimeValidations
      */
-    public function validate(array $schema, array $payload, array $replacements = [], array $validations = []): ValidationResult
+    public function validate(array $schema, array $payload, array $replacements = [], array $runtimeValidations = []): ValidationResult
     {
         $errors = [];
         $data = array_merge($payload, $replacements);
@@ -50,8 +50,8 @@ class SubmissionValidator
         $messages = [];
 
         $validator = $this->makeValidator();
-        $customRuleResolvers = $this->customRuleResolvers($validations);
-        $fieldValidationOverrides = $this->fieldValidationOverrides($validations);
+        $customRuleResolvers = $this->customRuleResolvers($runtimeValidations);
+        $fieldValidationOverrides = $this->fieldValidationOverrides($runtimeValidations);
 
         $pages = $schema['form']['pages'] ?? [];
         foreach ($pages as $pi => $page) {
@@ -82,9 +82,9 @@ class SubmissionValidator
                         $extraRules,
                     );
 
-                    $validations = $field['validations'] ?? [];
-                    if (is_array($validations)) {
-                        foreach ($validations as $rule) {
+                    $fieldValidations = $field['validations'] ?? [];
+                    if (is_array($fieldValidations)) {
+                        foreach ($fieldValidations as $rule) {
                             $name = $rule['rule'] ?? null;
                             if ( ! is_string($name) || '' === $name) {
                                 continue;
@@ -177,11 +177,11 @@ class SubmissionValidator
     /**
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $replacements
-     * @param  array<string, mixed>  $validations
+     * @param  array<string, mixed>  $runtimeValidations
      */
-    public function assertValid(array $schema, array $payload, array $replacements = [], array $validations = []): void
+    public function assertValid(array $schema, array $payload, array $replacements = [], array $runtimeValidations = []): void
     {
-        $result = $this->validate($schema, $payload, $replacements, $validations);
+        $result = $this->validate($schema, $payload, $replacements, $runtimeValidations);
 
         if ($result->isValid()) {
             return;
@@ -670,12 +670,12 @@ class SubmissionValidator
     }
 
     /**
-     * @param  array<string, mixed>  $validations
+     * @param  array<string, mixed>  $runtimeValidations
      * @return array<string, callable>
      */
-    private function customRuleResolvers(array $validations): array
+    private function customRuleResolvers(array $runtimeValidations): array
     {
-        $rules = $validations['rules'] ?? null;
+        $rules = $runtimeValidations['rules'] ?? null;
         if ( ! is_array($rules)) {
             return [];
         }
@@ -693,12 +693,12 @@ class SubmissionValidator
     }
 
     /**
-     * @param  array<string, mixed>  $validations
+     * @param  array<string, mixed>  $runtimeValidations
      * @return array<string, array<int, mixed>>
      */
-    private function fieldValidationOverrides(array $validations): array
+    private function fieldValidationOverrides(array $runtimeValidations): array
     {
-        $fields = $validations['fields'] ?? null;
+        $fields = $runtimeValidations['fields'] ?? null;
         if ( ! is_array($fields)) {
             return [];
         }

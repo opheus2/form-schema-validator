@@ -118,7 +118,7 @@ if (! $result->isValid()) {
 }
 
 // Optional: pass runtime validation extensions
-$custom = [
+$runtimeValidations = [
   'fields' => [
     'username' => [
       'required',
@@ -136,12 +136,16 @@ $custom = [
   ],
 ];
 
-$result = $validator->validate($schema, $payload, $context, $custom);
+$result = $validator->validate($schema, $payload, $context, $runtimeValidations);
 ```
 
 #### Runtime validation extensions
 
 You can optionally pass a 4th argument to `validate()` / `assertValid()`:
+
+```php
+$validator->validate($schema, $payload, $replacements, $runtimeValidations);
+```
 
 - `fields`: map of field key to extra validations.
 - `rules`: map of schema rule name to callable resolver.
