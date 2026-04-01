@@ -91,7 +91,8 @@ class SubmissionValidator
                                     $messages["{$subFieldKey}:required"] = 'This field is required.';
                                 } else {
                                     // Optional sub-fields should still be string if provided
-                                    $subFieldRules[] = 'nullable|string';
+                                    $subFieldRules[] = 'nullable';
+                                    $subFieldRules[] = 'string';
                                 }
 
                                 if ([] !== $subFieldRules) {

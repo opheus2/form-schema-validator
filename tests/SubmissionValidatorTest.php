@@ -152,4 +152,44 @@ class SubmissionValidatorTest extends TestCase
             'email' => 'john@example.com',
         ], $result->valid());
     }
+
+    public function test_address_field_optional_sub_properties_are_validated_without_rule_not_found_errors(): void
+    {
+        $validator = new SubmissionValidator();
+
+        $schema = [
+            'form' => [
+                'pages' => [
+                    [
+                        'sections' => [
+                            [
+                                'fields' => [
+                                    [
+                                        'key' => 'address',
+                                        'type' => 'address',
+                                        'required' => true,
+                                        'address_properties' => [
+                                            'address_line_1' => ['required' => true],
+                                            'address_line_2' => ['required' => false],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $payload = [
+            'address' => [
+                'address_line_1' => '123 Example Street',
+            ],
+        ];
+
+        $result = $validator->validate($schema, $payload);
+
+        $this->assertTrue($result->isValid());
+        $this->assertSame($payload, $result->valid());
+    }
 }
