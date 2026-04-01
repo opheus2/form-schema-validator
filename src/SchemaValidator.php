@@ -128,6 +128,25 @@ class SchemaValidator
             $errors["{$path}.option_properties.data"] = 'Options field requires option_properties.data.';
         }
 
+        if ('address' === $type) {
+            $addressProps = $field['address_properties'] ?? [];
+            if ( ! is_array($addressProps)) {
+                $errors["{$path}.address_properties"] = 'Address field requires address_properties as an object.';
+            } else {
+                if (empty($addressProps)) {
+                    $errors["{$path}.address_properties"] = 'Address field requires at least one property in address_properties.';
+                } else {
+                    foreach ($addressProps as $propKey => $propConfig) {
+                        if ( ! is_array($propConfig)) {
+                            $errors["{$path}.address_properties.{$propKey}"] = 'Each address property must be an object.';
+                        } elseif ( ! isset($propConfig['required']) || ! is_bool($propConfig['required'])) {
+                            $errors["{$path}.address_properties.{$propKey}.required"] = 'Each address property must have a required boolean flag.';
+                        }
+                    }
+                }
+            }
+        }
+
         return $errors;
     }
 }

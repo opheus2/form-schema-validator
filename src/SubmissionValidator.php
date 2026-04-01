@@ -73,6 +73,42 @@ class SubmissionValidator
                         $messages["{$key}:required"] = 'This field is required.';
                     }
 
+                    // Handle address field type with nested validation
+                    $fieldType = $field['type'] ?? null;
+                    if ('address' === $fieldType) {
+                        $addressProps = $field['address_properties'] ?? [];
+                        if (is_array($addressProps)) {
+                            foreach ($addressProps as $propKey => $propConfig) {
+                                if ( ! is_array($propConfig)) {
+                                    continue;
+                                }
+
+                                $subFieldKey = "{$key}.{$propKey}";
+                                $subFieldRules = [];
+
+                                if ((bool) ($propConfig['required'] ?? false)) {
+                                    $subFieldRules[] = 'required';
+                                    $messages["{$subFieldKey}:required"] = 'This field is required.';
+                                } else {
+                                    // Optional sub-fields should still be string if provided
+                                    $subFieldRules[] = 'nullable|string';
+                                }
+
+                                if ([] !== $subFieldRules) {
+                                    $rules[$subFieldKey] = $subFieldRules;
+                                }
+
+                                if (isset($data[$key][$propKey])) {
+                                    $validated[$key][$propKey] = $data[$key][$propKey];
+                                }
+                            }
+                        }
+
+                        // Skip further constraint/validation processing for address fields
+                        // as they're handled via nested rules above
+                        continue;
+                    }
+
                     $extraRules = [];
                     $this->applyConstraints(
                         $validator,
