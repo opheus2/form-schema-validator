@@ -663,7 +663,9 @@ class SubmissionValidator
                 $allowedKeys = array_values(array_unique($allowedKeys));
 
                 if ([] !== $allowedKeys) {
-                    if (in_array($optionType, ['select', 'radio'], true)) {
+                    if (in_array($optionType, ['select', 'radio', 'tabs'], true)) {
+                        $fieldRules[] = 'string';
+
                         $rule = $this->toRakitRule($validator, 'in', $allowedKeys);
                         if (null !== $rule) {
                             $fieldRules[] = $rule;

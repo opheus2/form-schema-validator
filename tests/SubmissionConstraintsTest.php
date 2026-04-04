@@ -246,6 +246,26 @@ class SubmissionConstraintsTest extends TestCase
         $this->assertFalse($this->validator()->validate($schema, ['choice' => ['a', 'nope']])->isValid());
     }
 
+    public function test_tabs_options_validate_as_single_string_key(): void
+    {
+        $schema = $this->schemaForField([
+            'key' => 'transfer_type',
+            'type' => 'options',
+            'option_properties' => [
+                'type' => 'tabs',
+                'data' => [
+                    ['key' => 'domestic', 'value' => 'Domestic'],
+                    ['key' => 'international', 'value' => 'International'],
+                ],
+            ],
+        ]);
+
+        $this->assertTrue($this->validator()->validate($schema, ['transfer_type' => 'domestic'])->isValid());
+        $this->assertTrue($this->validator()->validate($schema, ['transfer_type' => 'international'])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['transfer_type' => 'unknown'])->isValid());
+        $this->assertFalse($this->validator()->validate($schema, ['transfer_type' => ['domestic']])->isValid());
+    }
+
     public function test_optional_boolean_field_can_be_missing(): void
     {
         $schema = $this->schemaForField([
