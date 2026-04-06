@@ -32,6 +32,7 @@ class SchemaValidator
         'country',
         'divider',
         'spacing',
+        'banner',
         'hidden',
     ];
 

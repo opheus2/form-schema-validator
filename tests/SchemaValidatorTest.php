@@ -79,4 +79,34 @@ class SchemaValidatorTest extends TestCase
         $this->assertFalse($result->isValid());
         $this->assertArrayHasKey('form.pages[0].sections[0].fields[0].type', $result->errors());
     }
+
+    public function test_accepts_banner_field_type(): void
+    {
+        $validator = new SchemaValidator();
+
+        $schema = [
+            'form' => [
+                'pages' => [
+                    [
+                        'key' => 'page_1',
+                        'sections' => [
+                            [
+                                'key' => 'section_1',
+                                'fields' => [
+                                    [
+                                        'key' => 'field_1',
+                                        'type' => 'banner',
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $validator->validate($schema);
+
+        $this->assertTrue($result->isValid());
+    }
 }
