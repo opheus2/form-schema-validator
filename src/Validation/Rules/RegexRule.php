@@ -60,7 +60,7 @@ class RegexRule extends Rule
             return false;
         }
 
-        $last = strrpos($pattern, $delimiter);
+        $last = mb_strrpos($pattern, $delimiter);
 
         return false !== $last && $last > 0;
     }

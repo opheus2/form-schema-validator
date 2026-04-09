@@ -7,23 +7,23 @@ namespace FormSchema;
 use Rakit\Validation\Rule;
 use InvalidArgumentException;
 use Rakit\Validation\Validator;
+use FormSchema\Validation\Rules\StepRule;
 use FormSchema\Validation\Rules\TimeRule;
 use FormSchema\Validation\Rules\AfterRule;
 use FormSchema\Validation\Rules\PhoneRule;
 use FormSchema\Validation\Rules\RegexRule;
 use FormSchema\Validation\Rules\BeforeRule;
 use FormSchema\Validation\Rules\StringRule;
-use FormSchema\Validation\Rules\CallableValidationRule;
 use Rakit\Validation\RuleNotFoundException;
 use FormSchema\Validation\Rules\BooleanRule;
 use FormSchema\Validation\Rules\DateTimeRule;
 use FormSchema\Validation\Rules\EndsWithRule;
 use FormSchema\Validation\Rules\NotBetweenRule;
 use FormSchema\Validation\Rules\StartsWithRule;
-use FormSchema\Validation\Rules\StepRule;
 use FormSchema\Validation\Rules\EmailDomainsRule;
 use FormSchema\Validation\Rules\FileConstraintsRule;
 use FormSchema\Validation\Rules\NumericComparisonRule;
+use FormSchema\Validation\Rules\CallableValidationRule;
 use FormSchema\Validation\Rules\RequiredIfAcceptedRule;
 use FormSchema\Validation\Rules\RequiredIfDeclinedRule;
 use FormSchema\Validation\Rules\RequiredWithNonEmptyRule;
@@ -53,6 +53,7 @@ class SubmissionValidator
         $validator = $this->makeValidator();
         $customRuleResolvers = $this->customRuleResolvers($runtimeValidations);
         $fieldValidationOverrides = $this->fieldValidationOverrides($runtimeValidations);
+        $fieldVisibility = $this->computeFieldVisibilityMap($schema, $data, $validator);
 
         $pages = $schema['form']['pages'] ?? [];
         foreach ($pages as $pi => $page) {
@@ -63,6 +64,10 @@ class SubmissionValidator
                     if ( ! is_string($key) || '' === $key) {
                         $errors["{$fieldPath}.key"][] = 'Field key is required.';
 
+                        continue;
+                    }
+
+                    if (($fieldVisibility[$key] ?? true) !== true) {
                         continue;
                     }
 
@@ -342,6 +347,20 @@ class SubmissionValidator
         $params = $this->normalizeParams($params);
 
         switch ($rule) {
+            case 'equal':
+                if ( ! isset($params[0])) {
+                    return null;
+                }
+
+                return $this->toRakitRule($validator, 'in', [$params[0]]);
+
+            case 'not_equal':
+                if ( ! isset($params[0])) {
+                    return null;
+                }
+
+                return $this->toRakitRule($validator, 'not_in', [$params[0]]);
+
             case 'in':
             case 'not_in':
                 if ([] === $params) {
@@ -1039,5 +1058,423 @@ class SubmissionValidator
                 $targetRules[] = $item;
             }
         }
+    }
+
+    /**
+     * @param  array<string, mixed>  $schema
+     * @param  array<string, mixed>  $data
+     * @return array<string, bool>
+     */
+    private function computeFieldVisibilityMap(array $schema, array $data, Validator $validator): array
+    {
+        $visibility = [];
+        $orderedConditionals = [];
+
+        $pages = $schema['form']['pages'] ?? [];
+        if ( ! is_array($pages)) {
+            return [];
+        }
+
+        foreach ($pages as $pi => $page) {
+            if ( ! is_array($page)) {
+                continue;
+            }
+
+            $pageKey = $this->normalizeVisibilityKey($page['key'] ?? null, "page_{$pi}");
+            $pageVisibilityKey = "page:{$pageKey}";
+            $visibility[$pageVisibilityKey] = ! ((bool) ($page['hidden'] ?? false));
+
+            if (is_array($page['conditionals'] ?? null)) {
+                $orderedConditionals = array_merge($orderedConditionals, array_values($page['conditionals']));
+            }
+
+            $sections = $page['sections'] ?? [];
+            if ( ! is_array($sections)) {
+                continue;
+            }
+
+            foreach ($sections as $si => $section) {
+                if ( ! is_array($section)) {
+                    continue;
+                }
+
+                $sectionKey = $this->normalizeVisibilityKey($section['key'] ?? null, "section_{$pi}_{$si}");
+                $sectionVisibilityKey = "section:{$pageKey}:{$sectionKey}";
+                $visibility[$sectionVisibilityKey] = ($visibility[$pageVisibilityKey] ?? true)
+                    && ! ((bool) ($section['hidden'] ?? false));
+
+                if (is_array($section['conditionals'] ?? null)) {
+                    $orderedConditionals = array_merge($orderedConditionals, array_values($section['conditionals']));
+                }
+
+                $fields = $section['fields'] ?? [];
+                if ( ! is_array($fields)) {
+                    continue;
+                }
+
+                foreach ($fields as $fi => $field) {
+                    if ( ! is_array($field)) {
+                        continue;
+                    }
+
+                    $fieldKey = $this->normalizeVisibilityKey($field['key'] ?? null, "field_{$pi}_{$si}_{$fi}");
+                    $fieldVisibilityKey = "field:{$fieldKey}";
+
+                    $isVisible = ($visibility[$sectionVisibilityKey] ?? true)
+                        && ! ((bool) ($field['hidden'] ?? false))
+                        && $this->evaluateVisibleIf($field['visible_if'] ?? null, $data, $validator);
+
+                    $visibility[$fieldVisibilityKey] = $isVisible;
+
+                    if (is_array($field['conditionals'] ?? null)) {
+                        $orderedConditionals = array_merge($orderedConditionals, array_values($field['conditionals']));
+                    }
+                }
+            }
+        }
+
+        foreach ($orderedConditionals as $conditional) {
+            if ( ! is_array($conditional) || ! $this->evaluateConditional($conditional, $data, $validator)) {
+                continue;
+            }
+
+            $then = $conditional['then'] ?? null;
+            if ( ! is_array($then)) {
+                continue;
+            }
+
+            $action = $then['action'] ?? null;
+            if ( ! is_string($action) || ! in_array($action, ['show', 'hide'], true)) {
+                continue;
+            }
+
+            $targets = $then['targets'] ?? null;
+            if ( ! is_array($targets)) {
+                continue;
+            }
+
+            $nextVisible = 'show' === $action;
+
+            foreach ($targets as $target) {
+                if ( ! is_array($target)) {
+                    continue;
+                }
+
+                $targetType = $target['type'] ?? null;
+                $targetKey = $this->normalizeVisibilityKey($target['key'] ?? null);
+                if ( ! is_string($targetType) || null === $targetKey) {
+                    continue;
+                }
+
+                $visibilityKey = null;
+                if ('field' === $targetType) {
+                    $visibilityKey = "field:{$targetKey}";
+                }
+
+                if (null === $visibilityKey || ! array_key_exists($visibilityKey, $visibility)) {
+                    continue;
+                }
+
+                $visibility[$visibilityKey] = $nextVisible;
+            }
+        }
+
+        $fieldVisibility = [];
+        foreach ($visibility as $visibilityKey => $isVisible) {
+            if ( ! str_starts_with($visibilityKey, 'field:')) {
+                continue;
+            }
+
+            $fieldKey = mb_substr($visibilityKey, 6);
+            if ('' === $fieldKey) {
+                continue;
+            }
+
+            $fieldVisibility[$fieldKey] = (bool) $isVisible;
+        }
+
+        return $fieldVisibility;
+    }
+
+    /**
+     * @param  array<string, mixed>|mixed  $visibleIf
+     * @param  array<string, mixed>  $data
+     */
+    private function evaluateVisibleIf(mixed $visibleIf, array $data, Validator $validator): bool
+    {
+        if ( ! is_array($visibleIf)) {
+            return true;
+        }
+
+        $all = $visibleIf['all'] ?? [];
+        $any = $visibleIf['any'] ?? [];
+        $not = $visibleIf['not'] ?? null;
+
+        if ( ! is_array($all)) {
+            $all = [];
+        }
+
+        if ( ! is_array($any)) {
+            $any = [];
+        }
+
+        $allPass = [] === $all || array_reduce(
+            $all,
+            fn (bool $carry, mixed $condition): bool => $carry && $this->evaluateCondition($condition, $data, $validator),
+            true,
+        );
+
+        $anyPass = [] === $any || array_reduce(
+            $any,
+            fn (bool $carry, mixed $condition): bool => $carry || $this->evaluateCondition($condition, $data, $validator),
+            false,
+        );
+
+        $notPass = true;
+        if (is_array($not)) {
+            $notPass = ! $this->evaluateCondition($not, $data, $validator);
+        }
+
+        return $allPass && $anyPass && $notPass;
+    }
+
+    /**
+     * @param  array<string, mixed>  $conditional
+     * @param  array<string, mixed>  $data
+     */
+    private function evaluateConditional(array $conditional, array $data, Validator $validator): bool
+    {
+        $when = $conditional['when'] ?? null;
+        if ( ! is_array($when)) {
+            return false;
+        }
+
+        return $this->evaluateCondition($when, $data, $validator);
+    }
+
+    /**
+     * @param  array<string, mixed>|mixed  $condition
+     * @param  array<string, mixed>  $data
+     */
+    private function evaluateCondition(mixed $condition, array $data, Validator $validator): bool
+    {
+        if ( ! is_array($condition)) {
+            return false;
+        }
+
+        $fieldKey = $condition['field'] ?? $condition['key'] ?? null;
+        $operator = $condition['operator'] ?? null;
+
+        if ( ! is_string($fieldKey) || '' === $fieldKey || ! is_string($operator) || '' === $operator) {
+            return false;
+        }
+
+        $left = $this->resolveDataValue($data, $fieldKey);
+
+        if ('empty' === $operator) {
+            return $this->isEmptyValue($left);
+        }
+
+        if ('not_empty' === $operator) {
+            return ! $this->isEmptyValue($left);
+        }
+
+        if ('true' === $operator) {
+            return true === filter_var($left, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        }
+
+        if ('false' === $operator) {
+            return false === filter_var($left, FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        }
+
+        $right = $this->resolveConditionValue($condition['value'] ?? null, $data);
+
+        return match ($operator) {
+            'is', '==' => $this->evaluateWithRakitRule($validator, 'equal', $left, [$right]),
+            'is_not', '!=' => $this->evaluateWithRakitRule($validator, 'not_equal', $left, [$right]),
+            '>' => $this->evaluateWithRakitRule($validator, 'gt', $left, [$right]),
+            '<' => $this->evaluateWithRakitRule($validator, 'lt', $left, [$right]),
+            '>=' => $this->evaluateWithRakitRule($validator, 'gte', $left, [$right]),
+            '<=' => $this->evaluateWithRakitRule($validator, 'lte', $left, [$right]),
+            'contains' => $this->valueContains($left, $right),
+            'not_contains' => ! $this->valueContains($left, $right),
+            'starts_with' => $this->evaluateWithRakitRule($validator, 'starts_with', $left, [$right]),
+            'not_starts_with' => ! $this->evaluateWithRakitRule($validator, 'starts_with', $left, [$right]),
+            'ends_with' => $this->evaluateWithRakitRule($validator, 'ends_with', $left, [$right]),
+            'not_ends_with' => ! $this->evaluateWithRakitRule($validator, 'ends_with', $left, [$right]),
+            'length_gte' => $this->evaluateWithRakitRule($validator, 'gte', $this->valueLength($left), [$right]),
+            'length_lte' => $this->evaluateWithRakitRule($validator, 'lte', $this->valueLength($left), [$right]),
+            'in' => $this->evaluateWithRakitRule($validator, 'in', $left, $this->normalizeComparisonList($right)),
+            'not_in' => $this->evaluateWithRakitRule($validator, 'not_in', $left, $this->normalizeComparisonList($right)),
+            'between' => $this->evaluateBetweenViaRakit($validator, $left, $condition),
+            'not_between' => ! $this->evaluateBetweenViaRakit($validator, $left, $condition),
+            'before' => $this->evaluateWithRakitRule($validator, 'before', $left, [$right]),
+            'after' => $this->evaluateWithRakitRule($validator, 'after', $left, [$right]),
+            default => false,
+        };
+    }
+
+    /**
+     * @param  array<string, mixed>  $condition
+     */
+    private function evaluateBetweenViaRakit(Validator $validator, mixed $left, array $condition): bool
+    {
+        $bounds = $this->extractBetweenBounds($condition);
+        if (null === $bounds) {
+            return false;
+        }
+
+        return $this->evaluateWithRakitRule($validator, 'between', $left, $bounds);
+    }
+
+    /**
+     * @param  array<string, mixed>  $condition
+     * @return array{0: mixed, 1: mixed}|null
+     */
+    private function extractBetweenBounds(array $condition): ?array
+    {
+        $range = $condition['range'] ?? null;
+        if (is_array($range) && isset($range[0], $range[1])) {
+            return [$range[0], $range[1]];
+        }
+
+        $value = $condition['value'] ?? null;
+
+        if (is_array($value) && isset($value[0], $value[1])) {
+            return [$value[0], $value[1]];
+        }
+
+        if (is_string($value)) {
+            $separator = $condition['separator'] ?? ',';
+            if ('space' === $separator) {
+                $separator = ' ';
+            }
+
+            $parts = explode((string) $separator, $value);
+            if (isset($parts[0], $parts[1])) {
+                return [$parts[0], $parts[1]];
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * @param  array<int, mixed>  $params
+     */
+    private function evaluateWithRakitRule(Validator $validator, string $ruleName, mixed $value, array $params = []): bool
+    {
+        $mappedRule = $this->toRakitRule($validator, $ruleName, $params);
+        if (null === $mappedRule) {
+            return false;
+        }
+
+        $validation = $validator->make(
+            ['__candidate__' => $value],
+            ['__candidate__' => [$mappedRule]],
+        );
+
+        $validation->validate();
+
+        return ! $validation->fails();
+    }
+
+    private function resolveConditionValue(mixed $value, array $data): mixed
+    {
+        if ( ! is_string($value)) {
+            return $value;
+        }
+
+        $refKey = $this->fieldRefKey($value);
+        if (null === $refKey) {
+            return $value;
+        }
+
+        return $this->resolveDataValue($data, $refKey);
+    }
+
+    /**
+     * @param  array<string, mixed>  $data
+     */
+    private function resolveDataValue(array $data, string $key): mixed
+    {
+        $segments = explode('.', $key);
+        $value = $data;
+
+        foreach ($segments as $segment) {
+            if ( ! is_array($value) || ! array_key_exists($segment, $value)) {
+                return null;
+            }
+
+            $value = $value[$segment];
+        }
+
+        return $value;
+    }
+
+    private function valueContains(mixed $left, mixed $right): bool
+    {
+        if (is_array($left)) {
+            return in_array((string) ($right ?? ''), array_map('strval', $left), true);
+        }
+
+        return str_contains((string) ($left ?? ''), (string) ($right ?? ''));
+    }
+
+    private function valueLength(mixed $value): int
+    {
+        if (is_array($value)) {
+            return count($value);
+        }
+
+        return mb_strlen((string) ($value ?? ''));
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    private function normalizeComparisonList(mixed $value): array
+    {
+        if (is_string($value)) {
+            $value = explode(',', $value);
+        }
+
+        if ( ! is_array($value)) {
+            return [];
+        }
+
+        return array_values(array_map(
+            static fn (mixed $item): string => (string) $item,
+            $value,
+        ));
+    }
+
+    private function isEmptyValue(mixed $value): bool
+    {
+        if (null === $value) {
+            return true;
+        }
+
+        if (is_string($value)) {
+            return '' === mb_trim($value);
+        }
+
+        if (is_array($value)) {
+            return [] === $value;
+        }
+
+        return false;
+    }
+
+    private function normalizeVisibilityKey(mixed $value, ?string $fallback = null): ?string
+    {
+        if (is_string($value)) {
+            $trimmed = mb_trim($value);
+            if ('' !== $trimmed) {
+                return $trimmed;
+            }
+        }
+
+        return $fallback;
     }
 }

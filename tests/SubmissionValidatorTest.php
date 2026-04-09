@@ -192,4 +192,370 @@ class SubmissionValidatorTest extends TestCase
         $this->assertTrue($result->isValid());
         $this->assertSame($payload, $result->valid());
     }
+
+    public function test_hidden_field_is_not_validated_when_never_shown(): void
+    {
+        $validator = new SubmissionValidator();
+
+        $schema = [
+            'form' => [
+                'pages' => [
+                    [
+                        'sections' => [
+                            [
+                                'fields' => [
+                                    [
+                                        'key' => 'visible_name',
+                                        'type' => 'short-text',
+                                        'required' => true,
+                                    ],
+                                    [
+                                        'key' => 'internal_note',
+                                        'type' => 'short-text',
+                                        'hidden' => true,
+                                        'required' => true,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $validator->validate($schema, [
+            'visible_name' => 'Jane',
+        ]);
+
+        $this->assertTrue($result->isValid());
+        $this->assertSame([
+            'visible_name' => 'Jane',
+        ], $result->valid());
+    }
+
+    public function test_conditional_show_hide_controls_required_validation(): void
+    {
+        $validator = new SubmissionValidator();
+
+        $schema = [
+            'form' => [
+                'pages' => [
+                    [
+                        'sections' => [
+                            [
+                                'fields' => [
+                                    [
+                                        'key' => 'biller_type',
+                                        'type' => 'options',
+                                        'required' => true,
+                                        'option_properties' => [
+                                            'type' => 'tabs',
+                                            'data' => [
+                                                ['key' => 'personal', 'value' => 'Personal'],
+                                                ['key' => 'business', 'value' => 'Business'],
+                                            ],
+                                        ],
+                                        'conditionals' => [
+                                            [
+                                                'when' => [
+                                                    'field' => 'biller_type',
+                                                    'operator' => 'is',
+                                                    'value' => 'personal',
+                                                ],
+                                                'then' => [
+                                                    'action' => 'show',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'phone'],
+                                                    ],
+                                                ],
+                                            ],
+                                            [
+                                                'when' => [
+                                                    'field' => 'biller_type',
+                                                    'operator' => 'is',
+                                                    'value' => 'personal',
+                                                ],
+                                                'then' => [
+                                                    'action' => 'hide',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'payment_type'],
+                                                    ],
+                                                ],
+                                            ],
+                                            [
+                                                'when' => [
+                                                    'field' => 'biller_type',
+                                                    'operator' => 'is',
+                                                    'value' => 'business',
+                                                ],
+                                                'then' => [
+                                                    'action' => 'show',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'payment_type'],
+                                                    ],
+                                                ],
+                                            ],
+                                            [
+                                                'when' => [
+                                                    'field' => 'biller_type',
+                                                    'operator' => 'is',
+                                                    'value' => 'business',
+                                                ],
+                                                'then' => [
+                                                    'action' => 'hide',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'phone'],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'key' => 'phone',
+                                        'type' => 'phone',
+                                        'required' => true,
+                                        'hidden' => true,
+                                    ],
+                                    [
+                                        'key' => 'payment_type',
+                                        'type' => 'options',
+                                        'required' => true,
+                                        'hidden' => true,
+                                        'option_properties' => [
+                                            'type' => 'select',
+                                            'data' => [
+                                                ['key' => 'paybill', 'value' => 'Paybill'],
+                                                ['key' => 'till', 'value' => 'Till'],
+                                            ],
+                                        ],
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $personalResult = $validator->validate($schema, [
+            'biller_type' => 'personal',
+            'phone' => '+254711000000',
+        ]);
+
+        $this->assertTrue($personalResult->isValid());
+        $this->assertArrayNotHasKey('payment_type', $personalResult->errors());
+
+        $businessValidResult = $validator->validate($schema, [
+            'biller_type' => 'business',
+            'payment_type' => 'paybill',
+        ]);
+
+        $this->assertTrue($businessValidResult->isValid());
+        $this->assertArrayNotHasKey('phone', $businessValidResult->errors());
+
+        $businessInvalidResult = $validator->validate($schema, [
+            'biller_type' => 'business',
+        ]);
+
+        $this->assertFalse($businessInvalidResult->isValid());
+        $this->assertArrayHasKey('payment_type', $businessInvalidResult->errors());
+        $this->assertArrayNotHasKey('phone', $businessInvalidResult->errors());
+    }
+
+    public function test_conditional_is_and_is_not_use_rakit_backed_equality(): void
+    {
+        $validator = new SubmissionValidator();
+
+        $schema = [
+            'form' => [
+                'pages' => [
+                    [
+                        'sections' => [
+                            [
+                                'fields' => [
+                                    [
+                                        'key' => 'status',
+                                        'type' => 'short-text',
+                                        'required' => true,
+                                        'conditionals' => [
+                                            [
+                                                'when' => [
+                                                    'field' => 'status',
+                                                    'operator' => 'is',
+                                                    'value' => 'active',
+                                                ],
+                                                'then' => [
+                                                    'action' => 'show',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'activation_code'],
+                                                    ],
+                                                ],
+                                            ],
+                                            [
+                                                'when' => [
+                                                    'field' => 'status',
+                                                    'operator' => 'is_not',
+                                                    'value' => 'active',
+                                                ],
+                                                'then' => [
+                                                    'action' => 'hide',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'activation_code'],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'key' => 'activation_code',
+                                        'type' => 'short-text',
+                                        'required' => true,
+                                        'hidden' => true,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $activeResult = $validator->validate($schema, [
+            'status' => 'active',
+            'activation_code' => 'ABC-123',
+        ]);
+
+        $this->assertTrue($activeResult->isValid());
+
+        $inactiveResult = $validator->validate($schema, [
+            'status' => 'inactive',
+        ]);
+
+        $this->assertTrue($inactiveResult->isValid());
+        $this->assertArrayNotHasKey('activation_code', $inactiveResult->errors());
+    }
+
+    public function test_length_gte_and_length_lte_support_strings_and_arrays(): void
+    {
+        $validator = new SubmissionValidator();
+
+        $schema = [
+            'form' => [
+                'pages' => [
+                    [
+                        'sections' => [
+                            [
+                                'fields' => [
+                                    [
+                                        'key' => 'username',
+                                        'type' => 'short-text',
+                                        'required' => true,
+                                        'conditionals' => [
+                                            [
+                                                'when' => [
+                                                    'field' => 'username',
+                                                    'operator' => 'length_gte',
+                                                    'value' => 5,
+                                                ],
+                                                'then' => [
+                                                    'action' => 'show',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'profile_note'],
+                                                    ],
+                                                ],
+                                            ],
+                                            [
+                                                'when' => [
+                                                    'field' => 'username',
+                                                    'operator' => 'length_lte',
+                                                    'value' => 4,
+                                                ],
+                                                'then' => [
+                                                    'action' => 'hide',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'profile_note'],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'key' => 'profile_note',
+                                        'type' => 'short-text',
+                                        'required' => true,
+                                        'hidden' => true,
+                                    ],
+                                    [
+                                        'key' => 'tags',
+                                        'type' => 'options',
+                                        'required' => true,
+                                        'option_properties' => [
+                                            'type' => 'checkbox',
+                                            'data' => [
+                                                ['key' => 'one', 'value' => 'One'],
+                                                ['key' => 'two', 'value' => 'Two'],
+                                                ['key' => 'three', 'value' => 'Three'],
+                                            ],
+                                        ],
+                                        'conditionals' => [
+                                            [
+                                                'when' => [
+                                                    'field' => 'tags',
+                                                    'operator' => 'length_gte',
+                                                    'value' => 2,
+                                                ],
+                                                'then' => [
+                                                    'action' => 'show',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'tag_summary'],
+                                                    ],
+                                                ],
+                                            ],
+                                            [
+                                                'when' => [
+                                                    'field' => 'tags',
+                                                    'operator' => 'length_lte',
+                                                    'value' => 1,
+                                                ],
+                                                'then' => [
+                                                    'action' => 'hide',
+                                                    'targets' => [
+                                                        ['type' => 'field', 'key' => 'tag_summary'],
+                                                    ],
+                                                ],
+                                            ],
+                                        ],
+                                    ],
+                                    [
+                                        'key' => 'tag_summary',
+                                        'type' => 'short-text',
+                                        'required' => true,
+                                        'hidden' => true,
+                                    ],
+                                ],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+        ];
+
+        $stringVisibleResult = $validator->validate($schema, [
+            'username' => 'alpha',
+            'profile_note' => 'Visible after five chars',
+            'tags' => ['one', 'two'],
+            'tag_summary' => 'Two tags selected',
+        ]);
+
+        $this->assertTrue($stringVisibleResult->isValid());
+
+        $stringHiddenResult = $validator->validate($schema, [
+            'username' => 'abcd',
+            'tags' => ['one'],
+        ]);
+
+        $this->assertTrue($stringHiddenResult->isValid());
+        $this->assertArrayNotHasKey('profile_note', $stringHiddenResult->errors());
+        $this->assertArrayNotHasKey('tag_summary', $stringHiddenResult->errors());
+    }
 }

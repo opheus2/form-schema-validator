@@ -206,6 +206,7 @@ In addition to `validations`, the validator will also enforce `constraints` by f
 - `tag` validates `constraints.min` / `constraints.max` as tag count
 - `email` validates domain allow/deny lists via `constraints.allowed_domains` / `constraints.disallowed_domains` (and `constraints.max_length`)
 - `country` validates `constraints.allow_countries` / `constraints.exclude_countries`
+- `phone` may include `constraints.default_country` as a renderer hint for pre-selecting a country
 - File inputs (`file`, `image`, `video`, `document`) validate `constraints.accept`, `allow_multiple`, `min`, `max`, `max_file_size`, `max_total_size`
 
 #### Supported field validations

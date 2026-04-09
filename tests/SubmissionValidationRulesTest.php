@@ -428,7 +428,7 @@ class SubmissionValidationRulesTest extends TestCase
                     static function (array $context): array {
                         $value = (string) ($context['value'] ?? '');
 
-                        if (preg_match('/^\\d{10}$/', $value) === 1) {
+                        if (1 === preg_match('/^\\d{10}$/', $value)) {
                             return ['valid' => true];
                         }
 
@@ -459,7 +459,7 @@ class SubmissionValidationRulesTest extends TestCase
             'fields' => [
                 'account_number' => [
                     [
-                        'validate' => static fn (array $context) => is_string($context['value']) && 10 === strlen($context['value']),
+                        'validate' => static fn (array $context) => is_string($context['value']) && 10 === mb_strlen($context['value']),
                         'message' => 'Account number must be 10 digits.',
                     ],
                 ],
