@@ -40,13 +40,13 @@ class SchemaValidator
     {
         $errors = [];
 
-        if ( ! isset($schema['form']) || ! is_array($schema['form'])) {
+        if (! isset($schema['form']) || ! is_array($schema['form'])) {
             return new ValidationResult(['form' => 'Schema must include a form array.']);
         }
 
         $form = $schema['form'];
         $pages = $form['pages'] ?? null;
-        if ( ! is_array($pages) || empty($pages)) {
+        if (! is_array($pages) || empty($pages)) {
             $errors['form.pages'] = 'Form must include at least one page.';
         } else {
             foreach ($pages as $pi => $page) {
@@ -64,7 +64,7 @@ class SchemaValidator
             return;
         }
 
-        throw new InvalidArgumentException('Invalid form schema: ' . json_encode($result->errors()));
+        throw new InvalidArgumentException('Invalid form schema: '.json_encode($result->errors()));
     }
 
     private function validatePage(array $page, int $index): array
@@ -77,7 +77,7 @@ class SchemaValidator
         }
 
         $sections = $page['sections'] ?? null;
-        if ( ! is_array($sections)) {
+        if (! is_array($sections)) {
             $errors["{$path}.sections"] = 'Sections must be an array.';
 
             return $errors;
@@ -99,7 +99,7 @@ class SchemaValidator
         }
 
         $fields = $section['fields'] ?? null;
-        if ( ! is_array($fields)) {
+        if (! is_array($fields)) {
             $errors["{$path}.fields"] = 'Fields must be an array.';
 
             return $errors;
@@ -121,26 +121,43 @@ class SchemaValidator
         }
 
         $type = $field['type'] ?? null;
-        if ( ! is_string($type) || ! in_array($type, self::ALLOWED_FIELD_TYPES, true)) {
+        if (! is_string($type) || ! in_array($type, self::ALLOWED_FIELD_TYPES, true)) {
             $errors["{$path}.type"] = 'Field type is invalid or missing.';
         }
 
-        if (('options' === $type) && empty($field['option_properties']['data'])) {
-            $errors["{$path}.option_properties.data"] = 'Options field requires option_properties.data.';
+        if ($type === 'options') {
+            $optionProperties = $field['option_properties'] ?? null;
+
+            if (! is_array($optionProperties)) {
+                $errors["{$path}.option_properties.data"] = 'Options field requires option_properties.data or a dynamic source.';
+            } else {
+                $hasStaticData = array_key_exists('data', $optionProperties)
+                    && is_array($optionProperties['data'])
+                    && $optionProperties['data'] !== [];
+                $source = $optionProperties['source'] ?? null;
+                $hasDynamicSource = is_array($source)
+                    && ((bool) ($source['enabled'] ?? false))
+                    && is_string($source['endpoint'] ?? null)
+                    && $source['endpoint'] !== '';
+
+                if (! $hasStaticData && ! $hasDynamicSource) {
+                    $errors["{$path}.option_properties.data"] = 'Options field requires option_properties.data or a dynamic source.';
+                }
+            }
         }
 
-        if ('address' === $type) {
+        if ($type === 'address') {
             $addressProps = $field['address_properties'] ?? [];
-            if ( ! is_array($addressProps)) {
+            if (! is_array($addressProps)) {
                 $errors["{$path}.address_properties"] = 'Address field requires address_properties as an object.';
             } else {
                 if (empty($addressProps)) {
                     $errors["{$path}.address_properties"] = 'Address field requires at least one property in address_properties.';
                 } else {
                     foreach ($addressProps as $propKey => $propConfig) {
-                        if ( ! is_array($propConfig)) {
+                        if (! is_array($propConfig)) {
                             $errors["{$path}.address_properties.{$propKey}"] = 'Each address property must be an object.';
-                        } elseif ( ! isset($propConfig['required']) || ! is_bool($propConfig['required'])) {
+                        } elseif (! isset($propConfig['required']) || ! is_bool($propConfig['required'])) {
                             $errors["{$path}.address_properties.{$propKey}.required"] = 'Each address property must have a required boolean flag.';
                         }
                     }
